@@ -1,0 +1,115 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gapminder")
+install.packages("ggthemes")
+install.packages("forcats")
+install.packages("plotly")
+install.packages("ggtext")
+install.packages("viridis")
+install.packages("RColorBrewer")
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gapminder)
+library(ggthemes)
+library(forcats)
+library(plotly)
+library(ggtext)
+library(viridis)
+library(RColorBrewer)
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/patients.xlsx")
+df <- admission_data
+
+# STEP 2: Data Cleaning & Processing
+
+# Normalize patient names
+admission_data <- admission_data %>%
+  mutate(
+    Patient_First_Name = str_to_title(word(Name, 1)),
+    Patient_Last_Name  = str_to_title(word(Name, -1)),
+    Doctor_First_Name  = str_to_title(word(Doctor, 1)),
+    Doctor_Last_Name   = str_to_title(word(Doctor, -1))
+  )
+top_10 <- admission_data %>% head(10)
+top_10
+
+# Finding NULL values
+null_values <- admission_data %>%
+  filter(is.na(Name) | Name == "" | 
+           is.na(Doctor) | Doctor == "" |
+           is.na(`Billing Amount`) | `Billing Amount` <= 0 |
+           is.na(`Admission Type`) | `Admission Type` == "" |
+           is.na(`Medical Condition`) | `Medical Condition` == "" |
+           is.na(Age) | Age <= 0 |
+           is.na(`Date of Admission`) | is.na(`Hospital`) | `Hospital` == "" |
+           is.na(Gender) | Gender == "" |
+           is.na(`Blood Type`) | `Blood Type` == "" |
+           is.na(`Insurance Provider`) | `Insurance Provider` == "" |
+           is.na(`Room Number`) | `Room Number` == "" |
+           is.na(Medication) | is.na(`Discharge Date`) |
+           is.na(`Test Results`) | `Test Results` == "")
+null_values
+
+# Removing duplicates
+admission_data <- admission_data %>%
+  distinct(Name, `Date of Admission`, .keep_all = TRUE)
+admission_data
+
+# Standardize gender
+admission_data <- admission_data %>%
+  mutate(Gender = case_when(
+    tolower(Gender) %in% c('m', 'male', 'man', 'boy', 'men') ~ 'Male',
+    tolower(Gender) %in% c('f', 'female', 'woman', 'girl', 'women') ~ 'Female',
+    TRUE ~ Gender
+  ))
+
+# Standardize dates
+admission_data <- admission_data %>%
+  mutate(
+    `Date of Admission` = as.Date(`Date of Admission`, format = "%Y-%m-%d"),
+    `Discharge Date` = as.Date(`Discharge Date`, format = "%Y-%m-%d")
+  )
+
+# Create analysis table
+analysis_table <- admission_data %>%
+  dplyr::select(Patient_First_Name, Patient_Last_Name, Age, Gender, `Blood Type`, 
+                `Medical Condition`, `Date of Admission`, Doctor_First_Name, 
+                Doctor_Last_Name, Hospital, `Insurance Provider`, `Billing Amount`, 
+                `Room Number`, `Admission Type`, `Discharge Date`, Medication, 
+                `Test Results`)
+
+# Finding & Removing Titles from Patients' & Doctors' Names to avoid errors while aggregation
+
+titles_pattern <- "(?i)^(dr\\.?|mr\\.?|mrs\\.?|miss|ms\\.?|prof\\.?|md\\.?|dds\\.?|dvm\\.?|do\\.?|phd\\.?|jr\\.?|sr\\.?)\\s*"
+
+analysis_table <- analysis_table %>%
+  mutate(
+    
+    Doctor_First_Name = str_remove_all(Doctor_First_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    Doctor_Last_Name  = str_remove_all(Doctor_Last_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    Patient_First_Name = str_remove_all(Patient_First_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    Patient_Last_Name  = str_remove_all(Patient_Last_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    
+    
+    Doctor_First_Name = if_else(Doctor_First_Name == "" | is.na(Doctor_First_Name),
+                                word(Doctor_Last_Name, 1), 
+                                Doctor_First_Name),
+    Patient_First_Name = if_else(Patient_First_Name == "" | is.na(Patient_First_Name),
+                                 word(Patient_Last_Name, 1), 
+                                 Patient_First_Name)
+  )
+
+View(analysis_table)
