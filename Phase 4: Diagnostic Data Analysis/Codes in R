@@ -1,0 +1,912 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gridExtra")
+install.packages("MASS")
+install.packages("nortest")
+install.packages("car")
+install.packages("ggpubr")
+install.packages("stats")
+install.packages("forcats")
+install.packages("ggthemes")
+install.packages("viridis")
+install.packages("vcd")
+install.packages("patchwork")
+install.packages("GGally")
+install.packages("ggcorrplot")
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gridExtra)
+library(MASS)
+library(nortest)
+library(car)
+library(stats)
+library(forcats)
+library(ggthemes)
+library(viridis)
+library(vcd)
+library(patchwork)
+library(GGally)
+library(ggcorrplot)
+
+
+# Load the data
+analysis_table <- read.csv("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.csv")
+df <- analysis_table
+
+# 1. Checking Distributions
+# 1.1. Age Distribution
+age_data <- na.omit(df$Age)
+
+# 1.1.1. Histogram
+ggplot(data.frame(Age = age_data), aes(x = Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle("Age Distribution") +
+  xlab("Age") +
+  ylab("Frequency")
+
+dev.off()
+
+# 1.1.2. Boxplot
+ggplot(data.frame(Age = age_data), aes(x = "", y = Age)) +
+  geom_boxplot() +
+  ggtitle("Boxplot of Age")
+
+dev.off()
+
+# 1.1.3. Q-Q Plot
+qqnorm(age_data)
+qqline(age_data)
+title("Q-Q Plot for Age")
+
+dev.off()
+
+# 1.1.4. Kolmogorov-Smirnov Test
+ks_test <- ks.test(age_data, "pnorm", mean = mean(age_data), sd = sd(age_data))
+cat("\nKolmogorov–Smirnov Test:\n")
+cat(sprintf("Statistic = %f, p-value = %f\n", ks_test$statistic, ks_test$p.value))
+
+# 1.1.5. Anderson-Darling Test
+ad_test <- ad.test(age_data)
+cat("\nAnderson-Darling Test:\n")
+cat(sprintf("Statistic = %f\n", ad_test$statistic))
+for (i in seq_along(ad_test$critical.values)) {
+  cat(sprintf("Significance Level %f: Critical Value = %f\n", ad_test$significance.level[i], ad_test$critical.values[i]))
+}
+
+# Set Coordinates
+par(mfrow = c(3, 2))
+
+# 1) Log Transformation
+log_age <- log(age_data)
+
+ggplot(data.frame(Log_Age = log_age), aes(x = Log_Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle("Histogram - Log Transformed Age")
+
+dev.off()
+
+qqnorm(log_age)
+qqline(log_age)
+title("Q-Q Plot - Log Transformed Age")
+
+dev.off()
+
+# 2) Square Root Transformation
+sqrt_age <- sqrt(age_data)
+
+ggplot(data.frame(Sqrt_Age = sqrt_age), aes(x = Sqrt_Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle("Histogram - Square Root Transformed Age")
+
+dev.off()
+
+qqnorm(sqrt_age)
+qqline(sqrt_age)
+title("Q-Q Plot - Square Root Transformed Age")
+
+dev.off()
+
+# 3) Box-Cox Transformation 
+boxcox_result <- boxcox(lm(age_data ~ 1), lambda = seq(-2, 2, by = 0.1))
+fitted_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+boxcox_age <- (age_data^fitted_lambda - 1) / fitted_lambda
+
+dev.off()
+
+ggplot(data.frame(Boxcox_Age = boxcox_age), aes(x = Boxcox_Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle(sprintf("Histogram - Box-Cox (λ=%.2f)", fitted_lambda))
+
+dev.off()
+
+qqnorm(boxcox_age)
+qqline(boxcox_age)
+title("Q-Q Plot - Box-Cox Transformed Age")
+
+par(mfrow = c(1, 1))
+
+dev.off()
+
+# 1.2. Billing Amount
+# 1.2.1. Histogram
+
+bill_data <- df$Billing.Amount[!is.na(df$Billing.Amount)]
+
+num_bins <- 30
+
+binwidth <- (max(bill_data) - min(bill_data)) / num_bins
+
+n <- length(bill_data)
+
+
+ggplot(data.frame(Billing.Amount = bill_data), aes(x = Billing.Amount)) +
+  geom_histogram(bins = num_bins, fill = "blue", color = "black", alpha = 0.7) +
+  geom_density(aes(y = ..density.. * n * binwidth), color = "red", size = 1) +
+  labs(title = "Distribution of Billing Amount", x = "Billing Amount", y = "Frequency") +
+  theme_minimal()
+
+dev.off()
+
+# 1.2.2. Boxplot
+ggplot(data.frame(BillingAmount = bill_data), aes(x = "", y = BillingAmount)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Bill", x = "", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+dev.off()
+
+# 1.2.3. Q-Q Plot
+qqPlot(bill_data, main = "Q-Q Plot for Bill", ylab = "Billing Amount", xlab = "Theoretical Quantiles")
+dev.off()
+
+# 1.2.4. Kolmogorov-Smirnov Test
+ks_test <- ks.test(bill_data, "pnorm", mean(bill_data), sd(bill_data))
+cat("\nKolmogorov–Smirnov Test:\n")
+cat("Statistic =", ks_test$statistic, ", p-value =", ks_test$p.value, "\n")
+
+# 1.2.5. Anderson-Darling Test
+ad_test <- ad.test(bill_data)
+cat("\nAnderson-Darling Test:\n")
+cat("Statistic =", ad_test$statistic, "\n")
+cat("Critical Values:\n")
+for (i in seq_along(ad_test$critical.values)) {
+  cat("Significance Level", ad_test$significance.levels[i], ": Critical Value =", ad_test$critical.values[i], "\n")
+}
+
+# Bill is not normally distributed
+# Attempts to make corrections of Bill
+
+# Set Coordinates
+par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
+
+# 1) Log Transformation
+log_bill <- log(bill_data)
+hist(log_bill, probability = TRUE, main = "Histogram - Log Transformed Bill", xlab = "Log Transformed Billing Amount", breaks = 30, col = "blue", border = "black")
+qqnorm(log_bill, main = "Q-Q Plot - Log Transformed Bill", ylab = "Log Transformed Billing Amount")
+qqline(log_bill, col = "red")
+
+# 2) Square Root Transformation
+sqrt_bill <- sqrt(bill_data)
+hist(sqrt_bill, probability = TRUE, main = "Histogram - Square Root Transformed Bill", xlab = "Square Root Transformed Billing Amount", breaks = 30, col = "blue", border = "black")
+qqnorm(sqrt_bill, main = "Q-Q Plot - Square Root Transformed Bill", ylab = "Square Root Transformed Billing Amount")
+qqline(sqrt_bill, col = "red")
+
+
+par(mfrow = c(1, 1), mar = c(5, 4, 4, 2) + 0.1)
+
+dev.off()
+
+# 1.3. Length of Stay
+
+# Make sure that both date of admission and discharge date columns are datetime type
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+
+# Calculate Length of Stay
+df$Length.of.Stay <- as.numeric(df$Discharge.Date - df$Date.of.Admission)
+
+los <- na.omit(df$Length.of.Stay)
+
+# 1.3.1 Histogram
+ggplot(data.frame(los), aes(x=los)) +
+  geom_histogram(aes(y=..density..), bins=29, fill="blue", alpha=0.5) +
+  geom_density(color="red") +
+  labs(title="Distribution of Length of Stay", x="Days", y="Frequency") +
+  theme_minimal()
+
+dev.off()
+
+# 1.3.2. Boxplot
+ggplot(data.frame(los), aes(x=los)) +
+  geom_boxplot() +
+  labs(title="Box Plot of Length of Stay", x="Days") +
+  theme_minimal()
+
+dev.off()
+
+# 1.3.3. Q-Q plot
+qqnorm(los)
+qqline(los)
+title("Q-Q Plot for Length of Stay")
+
+dev.off()
+
+# 1.3.4. Kolmogorov-Smirnov Test
+ks_test <- ks.test(los, "pnorm", mean=mean(los), sd=sd(los))
+cat("\nKolmogorov–Smirnov Test:\n")
+cat(sprintf("Statistic = %.4f, p-value = %.4f\n", ks_test$statistic, ks_test$p.value))
+
+# 1.3.5. Anderson-Darling test
+ad_test <- ad.test(los)
+cat(sprintf("Anderson-Darling: statistic=%.4f\n", ad_test$statistic))
+for (i in 1:length(ad_test$critical.values)) {
+  cat(sprintf("  Significance Level %.1f%%: Critical Value = %.4f\n", ad_test$significance.level[i], ad_test$critical.values[i]))
+}
+
+# Length of Stay is not normally distributed
+# ANOVA, t-test, paired t-test, pearson r can NOT be used (Data not Normally Distributed)
+# Non-parametric Tests should be used (Kruskal-Wallis H, Mann-Whitney U, Wilcoxon signed-rank test, Spearman correlation)
+
+#  2. Finding Outliers: Using interquartile range and boxplot
+
+#  2.1. Age Outliers
+#  2.1.1. InterQuartile Range Method
+Q1 <- quantile(df$Age, 0.25)
+Q3 <- quantile(df$Age, 0.75)
+IQR <- Q3 - Q1
+
+# Range of Allowed Values
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers <- df[df$Age < lower_bound | df$Age > upper_bound, ]
+
+cat(sprintf("Number of Outliers = %d\n", nrow(outliers)))
+print(outliers[, "Age", drop = FALSE])
+
+# Further Illustration
+cat(sprintf("Q1 = %f, Q3 = %f, IQR = %f\n", Q1, Q3, IQR))
+cat(sprintf("Lower Bound = %f, Upper Bound = %f\n", lower_bound, upper_bound))
+cat(sprintf("Age range: %f → %f\n", min(df$Age), max(df$Age)))
+
+dev.off()
+
+# 2.1.2. Boxplot Method with different colored points for outliers
+age_df <- data.frame(Age = age_data)
+age_df$Outlier <- ifelse(age_df$Age < lower_bound | age_df$Age > upper_bound, 'Outlier', 'Normal')
+
+
+# Construct boxplot
+ggplot(age_df, aes(x = "", y = Age)) +
+  geom_boxplot(fill = "lightgray") +
+  geom_jitter(aes(color = Outlier), size = 3, width = 0.2) +
+  scale_color_manual(values = c('Normal' = 'blue', 'Outlier' = 'red')) +
+  labs(title = "Boxplot of Age with Outliers Highlighted", x = "Age") +
+  theme(legend.title = element_blank())
+
+dev.off()
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+#  2.2. Bill Outliers
+#  2.2.1. InterQuartile Range Method
+Q1 <- quantile(df$Billing.Amount, 0.25)
+Q3 <- quantile(df$Billing.Amount, 0.75)
+IQR <- Q3 - Q1
+
+# Range of Allowed Values
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers <- df %>% filter(Billing.Amount < lower_bound | Billing.Amount > upper_bound)
+
+cat(sprintf("Number of Outliers = %d\n", nrow(outliers)))
+print(outliers %>% dplyr::select(Billing.Amount))
+
+# Further Illustration
+cat(sprintf("Q1 = %f, Q3 = %f, IQR = %f\n", Q1, Q3, IQR))
+cat(sprintf("Lower Bound = %f, Upper Bound = %f\n", lower_bound, upper_bound))
+cat(sprintf("Billing Amount Range: %f → %f\n", min(df$`Billing Amount`), max(df$`Billing Amount`)))
+
+#  2.2.2. Boxplot Method
+# Construct New Dataframe for outliers values
+bill_df <- data.frame(Billing.Amount = bill_data)
+bill_df$Outlier <- ifelse(bill_df$Billing.Amount < lower_bound | bill_df$Billing.Amount > upper_bound, 'Outlier', 'Normal')
+
+# Construct boxplot
+ggplot(bill_df, aes(x = "", y = Billing.Amount, color = Outlier)) +
+  geom_boxplot(fill = "lightgray") +
+  geom_jitter(size = 3, width = 0.2) +
+  scale_color_manual(values = c("Normal" = "blue", "Outlier" = "red")) +
+  ggtitle("Boxplot of Billing Amount with Outliers Highlighted") +
+  xlab("") + ylab("Billing Amount") +
+  theme(legend.title = element_blank())
+
+dev.off()
+
+#  2.3. Length of Stay Outliers
+#  2.3.1. InterQuartile Range Method
+
+Q1 <- quantile(df$los, 0.25)
+Q3 <- quantile(df$los, 0.75)
+IQR <- Q3 - Q1
+
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+outliers <- df %>% filter(los < lower_bound | los > upper_bound)
+
+cat(sprintf("Number of Outliers = %d\n", nrow(outliers)))
+
+
+# Further Illustration
+cat(sprintf("Q1 = %f, Q3 = %f, IQR = %f\n", Q1, Q3, IQR))
+cat(sprintf("Lower Bound = %f, Upper Bound = %f\n", lower_bound, upper_bound))
+cat(sprintf("Length of Stay Range: %f → %f\n", min(df$los), max(df$los)))
+
+#  2.3.2. Boxplot Method
+ggplot(df, aes(x = "", y = Length.of.Stay, color = Outlier)) +
+  geom_boxplot(fill = "lightgray") +
+  geom_jitter(size = 5, width = 0.2) +
+  scale_color_manual(values = c("Normal" = "black", "Outlier" = "red")) +
+  ggtitle("Boxplot of Length of Stay with Colored Outliers") +
+  xlab("") +
+  ylab("Length of Stay (Days)") +
+  theme(legend.title = element_blank())
+
+dev.off()
+
+# Convert Age to AgeGroup
+
+df <- df %>% mutate(
+  AgeGroup = cut(Age,
+                 breaks = c(0, 20, 40, 60, 80, 100),
+                 labels = c("<20", "20-40", "40-60", "60-80", "80+"))
+)
+
+# 2.4. Boxplot by Admission Type
+ggplot(df, aes(x = `Admission.Type`, y = Length.of.Stay)) +
+  geom_boxplot(fill = "#66c2a5") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.5. Boxplot by Admission Type and Gender
+ggplot(df, aes(x = `Admission.Type`, y = Length.of.Stay, fill = Gender)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type and Gender",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.6. Boxplot + Jitter points colored by Age
+ggplot(df, aes(x = `Admission.Type`, y = Length.of.Stay)) +
+  geom_boxplot(aes(fill = Gender), outlier.shape = NA) +
+  geom_jitter(aes(color = Age), position = position_jitterdodge(jitter.width = 0.25, dodge.width = 0.75), size = 2, alpha = 0.5) +
+  scale_color_viridis(option = "plasma", direction = -1) +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type and Gender (Colored by Age)",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.7. Faceted Boxplot by Gender and AgeGroup
+plot_df <- df %>% filter(!is.na(AgeGroup) & !is.na(Gender) & !is.na(Admission.Type) & !is.na(Length.of.Stay))
+
+ggplot(plot_df, aes(x = Admission.Type, y = Length.of.Stay, fill = AgeGroup)) +
+  geom_boxplot() +
+  facet_wrap(~Gender) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type, Age Group, and Gender",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.8. Boxplot by Admission Type and Age Group
+ggplot(df, aes(x = Admission.Type, y = Length.of.Stay, fill = AgeGroup)) +
+  geom_boxplot() +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type and Age Group",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 3. Frequency Analysis of Categorical (Qualitative) Data
+table(df$Gender)
+table(df$Admission.Type)
+table(df$Insurance.Provider)
+table(df$Medication)
+table(df$Medical.Condition)
+table(df$Test.Results)
+table(df$Blood.Type)
+
+# 4. Test and Quantify relationships between Categorical variables
+
+# 4.1. Gender & Admission Type
+table1 <- table(df$Gender, df$Admission.Type)
+chi1 <- chisq.test(table1)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi1$statistic, chi1$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table1)$cramer))
+
+cat("Contingency Table:\n")
+print(table1)
+
+cat("\nExpected Counts:\n")
+print(round(chi1$expected, 2))
+
+barplot(prop.table(table1, 1), beside=FALSE, legend=TRUE, col=rainbow(ncol(table1)),
+        main="Admission Type by Gender", ylab="Proportion", xlab="Gender")
+
+dev.off()
+
+# 4.2. Age & Admission Type
+df$AgeGroup <- cut(df$Age, breaks = c(0, 20, 40, 60, 80, 100),
+                   labels = c("<20", "20-39", "40-59", "60-79", "80+"))
+
+table2 <- table(df$AgeGroup, df$Admission.Type)
+chi2 <- chisq.test(table2)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi2$statistic, chi2$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table2)$cramer))
+
+cat("Contingency Table:\n")
+print(table2)
+
+cat("\nExpected Counts:\n")
+print(round(chi2$expected, 2))
+
+barplot(prop.table(table2, 1), beside=FALSE, legend=TRUE, col=heat.colors(ncol(table2)),
+        main="Admission Type by Age Group", ylab="Proportion", xlab="Age Group")
+
+dev.off()
+
+# 4.3. Medical Condition & Admission Type
+table3 <- table(df$Medical.Condition, df$Admission.Type)
+chi3 <- chisq.test(table3)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi3$statistic, chi3$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table3)$cramer))
+
+cat("Contingency Table:\n")
+print(table3)
+
+cat("\nExpected Counts:\n")
+print(round(chi3$expected, 2))
+
+barplot(prop.table(table3, 1), beside=FALSE, legend=TRUE, col=topo.colors(ncol(table3)),
+        main="Admission Type by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+dev.off()
+
+# 4.4. Medical Condition & Insurance Provider
+table4 <- table(df$Medical.Condition, df$Insurance.Provider)
+chi4 <- chisq.test(table4)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi4$statistic, chi4$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table4)$cramer))
+
+cat("\nContingency Table:\n")
+print(table4)
+
+cat("\nExpected Counts:\n")
+print(round(chi4$expected, 2))
+
+barplot(prop.table(table4, 1), beside=FALSE, legend=TRUE, col=viridis::viridis(ncol(table4)),
+        main="Distribution of Insurance Provider by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+# 4.5. Medical Condition & Test Results
+table5 <- table(df$Medical.Condition, df$Test.Results)
+chi5 <- chisq.test(table5)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi5$statistic, chi5$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table5)$cramer))
+
+cat("\nContingency Table:\n")
+print(table5)
+
+cat("\nExpected Counts:\n")
+print(round(chi5$expected, 2))
+
+barplot(prop.table(table5, 1), beside=FALSE, legend=TRUE, col=RColorBrewer::brewer.pal(ncol(table5), "Blues"),
+        main="Distribution of Test Results by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+dev.off()
+
+# 4.6. Medical Condition & Medication
+table6 <- table(df$Medical.Condition, df$Medication)
+chi6 <- chisq.test(table6)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi6$statistic, chi6$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table6)$cramer))
+
+cat("\nContingency Table:\n")
+print(table6)
+
+cat("\nExpected Counts:\n")
+print(round(chi6$expected, 2))
+
+barplot(prop.table(table6, 1), beside=FALSE, legend=TRUE, col=viridis::viridis(ncol(table6), option = "C"),
+        main="Distribution of Medication by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+dev.off()
+
+# 5. Log-Linear Model for 3-Way Interaction
+# Age, Medical Condition, Admission Type
+
+# Step 1: Create Age Groups
+df$AgeGroup <- cut(df$Age,
+                   breaks = c(0, 20, 40, 60, 80, 100),
+                   labels = c("<20", "20-39", "40-59", "60-79", "80+"),
+                   right = FALSE)
+
+# Step 2: Create 3-way contingency table
+table3way <- df %>%
+  count(AgeGroup, Medical.Condition, Admission.Type) %>%
+  rename(Count = n)
+
+# Step 3: Fit log-linear model (Poisson regression)
+model <- glm(
+  Count ~ AgeGroup * Medical.Condition * Admission.Type,
+  data = table3way,
+  family = poisson()
+)
+
+# Step 4: Summary output
+summary(model)
+
+# 6. Cohort Analysis comparing cancer patients admitted in winter vs. summer
+
+# Step 1: Ensure date columns are in Date format
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+
+# Step 2: Create Season Column
+get_season <- function(date) {
+  month <- month(date)
+  if (month %in% c(12, 1, 2)) {
+    return("Winter")
+  } else if (month %in% c(6, 7, 8)) {
+    return("Summer")
+  } else {
+    return("Other")
+  }
+}
+
+df$Season <- sapply(df$Date.of.Admission, get_season)
+
+# Step 3: Filter cancer patients in Winter and Summer
+cancer_df <- df %>%
+  filter(tolower(Medical.Condition) == "cancer", Season %in% c("Winter", "Summer"))
+
+# Step 4: Calculate Length of Stay (in days)
+cancer_df <- cancer_df %>%
+  mutate(Length.of.Stay = as.numeric(Discharge.Date - Date.of.Admission))
+
+# Step 5: Split cohorts
+winter <- filter(cancer_df, Season == "Winter")
+summer <- filter(cancer_df, Season == "Summer")
+
+# Step 6: Summary Stats
+cat("\n=== Cohort Summary ===\n")
+cat("Winter cohort:\n")
+print(summary(dplyr::select(winter, Length.of.Stay, Billing.Amount)))
+
+cat("\nSummer cohort:\n")
+print(summary(dplyr::select(summer, Length.of.Stay, Billing.Amount)))
+
+# Step 7: Statistical Tests (Mann-Whitney U Test = Wilcoxon Rank-Sum Test in R)
+cat("\n=== Statistical Tests ===\n")
+
+# Length of Stay
+test1 <- wilcox.test(winter$Length.of.Stay, summer$Length.of.Stay, exact = FALSE)
+cat(sprintf("Length of Stay - Mann-Whitney U Test: W=%.2f, p=%.4f\n", test1$statistic, test1$p.value))
+
+# Billing Amount
+test2 <- wilcox.test(winter$Billing.Amount, summer$Billing.Amount, exact = FALSE)
+cat(sprintf("Billing Amount - Mann-Whitney U Test: W=%.2f, p=%.4f\n", test2$statistic, test2$p.value))
+
+# Step 8: Visualization
+ggplot(cancer_df, aes(x = Season, y = Length.of.Stay, fill = Season)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set2") +
+  ggtitle("Length of Stay: Cancer Patients (Winter vs Summer)") +
+  theme_minimal()
+
+dev.off()
+
+ggplot(cancer_df, aes(x = Season, y = Billing.Amount, fill = Season)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set3") +
+  ggtitle("Billing Amount: Cancer Patients (Winter vs Summer)") +
+  theme_minimal()
+
+dev.off()
+
+#  7.1. Time Series Analysis for Length of Stay (LOS), Billing Amount among cancer patients across time
+
+# Step 1 & 2: Parse date columns & filter cancer patients
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+cancer_df <- df %>% filter(tolower(Medical.Condition) == "cancer")
+
+# Step 3: Calculate Length of Stay
+cancer_df <- cancer_df %>%
+  mutate(Length.of.Stay = as.numeric(Discharge.Date - Date.of.Admission))
+
+# Step 4: Create 'Month' column
+cancer_df$Month <- floor_date(cancer_df$Date.of.Admission, "month")
+
+# Step 5: Aggregate by Month
+monthly_ts <- cancer_df %>%
+  group_by(Month) %>%
+  summarise(
+    Length.of.Stay = mean(Length.of.Stay, na.rm = TRUE),
+    Billing.Amount = mean(Billing.Amount, na.rm = TRUE),
+    Patient.Count = n()
+  )
+
+# Step 6: Plot LOS and Billing Amount
+par(mfrow = c(1, 2))  # 2 plots side-by-side
+plot(monthly_ts$Month, monthly_ts$Length.of.Stay, type = "o", col = "blue",
+     main = "Average Length of Stay Over Time", xlab = "Month", ylab = "LOS (days)")
+grid()
+
+
+plot(monthly_ts$Month, monthly_ts$Billing.Amount, type = "o", col = "orange",
+     main = "Average Billing Amount Over Time", xlab = "Month", ylab = "Billing Amount")
+grid()
+par(mfrow = c(1,1))  # Reset
+
+dev.off()
+
+#  7.2. Time Series Analysis for Length of Stay (LOS), Billing Amount, Patients numbers among cancer patients across time
+
+# Step 6: ggplot version with 3 time series
+
+# Plot 1: LOS
+p1 <- ggplot(monthly_ts, aes(x = Month, y = Length.of.Stay)) +
+  geom_line(color = "steelblue") +
+  geom_point() +
+  labs(title = "Average Length of Stay Over Time", y = "LOS (days)", x = "") +
+  theme_minimal()
+
+# Plot 2: Billing Amount
+p2 <- ggplot(monthly_ts, aes(x = Month, y = Billing.Amount)) +
+  geom_line(color = "darkorange") +
+  geom_point() +
+  labs(title = "Average Billing Amount Over Time", y = "Billing Amount", x = "") +
+  theme_minimal()
+
+# Plot 3: Patient Count
+p3 <- ggplot(monthly_ts, aes(x = Month, y = Patient.Count)) +
+  geom_line(color = "forestgreen") +
+  geom_point() +
+  labs(title = "Monthly Number of Cancer Patients", y = "Patient Count", x = "Month") +
+  theme_minimal()
+
+# Combine all 3
+library(patchwork)
+(p1 / p2 / p3) + plot_layout(ncol = 1)
+
+dev.off()
+
+#  8.1. Mann–Whitney U Test (Number vs Two Categorical Groups)
+# Billing Amount vs Admission Types (First Two Types)
+
+top_two_types <- names(sort(table(df$Admission.Type), decreasing = TRUE))[1:2]
+filtered <- df %>% filter(Admission.Type %in% top_two_types)
+
+group1 <- filtered %>% filter(Admission.Type == top_two_types[1]) %>% pull(Billing.Amount)
+group2 <- filtered %>% filter(Admission.Type == top_two_types[2]) %>% pull(Billing.Amount)
+
+test1 <- wilcox.test(group1, group2, exact = FALSE)
+
+cat(sprintf("\n[Mann–Whitney] Billing Amount between %s & %s\n", top_two_types[1], top_two_types[2]))
+cat(sprintf("U = %.2f, p = %.4f\n", test1$statistic, test1$p.value))
+
+#  8.2. Kruskal-Wallis Test (Number vs more than 2 Categorical Groups)
+# Length of Stay LOS vs Medical Condition 
+
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+
+df$LOS <- as.numeric(df$Discharge.Date - df$Date.of.Admission)
+
+valid_groups <- df %>%
+  group_by(Medical.Condition) %>%
+  filter(n() > 1) %>%
+  ungroup()
+
+test2 <- kruskal.test(LOS ~ Medical.Condition, data = valid_groups)
+
+cat("\n[Kruskal-Wallis] LOS \n")
+cat(sprintf("H = %.2f, p = %.4f\n", test2$statistic, test2$p.value))
+
+#  8.3. Spearman Correlation Test (Number vs Number)
+#  Age vs Billing Amount
+
+test3 <- cor.test(df$Age, df$Billing.Amount, method = "spearman")
+cat("\n[Spearman] with Billing Amount\n")
+cat(sprintf("rho = %.2f, p = %.4f\n", test3$estimate, test3$p.value))
+
+# LOS vs Billing Amount
+
+test4 <- cor.test(df$Age, df$LOS, method = "spearman")
+cat("\n[Spearman] with LOS\n")
+cat(sprintf("rho = %.2f, p = %.4f\n", test4$estimate, test4$p.value))
+
+#  8.4. Kolmogorov–Smirnov Test
+#  Admission Types vs LOS
+
+group1 <- filtered %>% filter(Admission.Type == top_two_types[1]) %>% pull(Length.of.Stay)
+group2 <- filtered %>% filter(Admission.Type == top_two_types[2]) %>% pull(Length.of.Stay)
+
+test5 <- ks.test(group1, group2)
+
+cat(sprintf("\n[KS Test] LOS  %s & %s\n", top_two_types[1], top_two_types[2]))
+cat(sprintf("KS = %.2f, p = %.4f\n", test5$statistic, test5$p.value))
+
+# 9.1. Boxplot: Billing Amount by Admission Type
+p1 <- ggplot(df, aes(x = Admission.Type, y = Billing.Amount)) +
+  geom_boxplot() +
+  labs(title = "Billing Amount by Admission Type", x = "Admission Type", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 9.2. Boxplot: LOS by Medical Condition
+p2 <- ggplot(df, aes(x = Medical.Condition, y = Length.of.Stay)) +
+  geom_boxplot() +
+  labs(title = "Length of Stay by Medical Condition", x = "Medical Condition", y = "LOS") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 9.3. KDE: Age distribution by Admission Type
+p3 <- ggplot(df, aes(x = Age, fill = Admission.Type, color = Admission.Type)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Age Distribution by Admission Type", x = "Age", y = "Density") +
+  theme_minimal()
+
+# Combine plots
+(p1 / p2 / p3) + plot_layout(guides = "collect")
+
+dev.off()
+
+#  10.1. Spearman Correlation Matrix (Numerical Variables)
+
+# Choose Numerical Variables ONLY
+num_vars <- df %>% dplyr::select(Age, Billing.Amount, Length.of.Stay)
+
+# Compute Spearman correlation
+corr <- cor(num_vars, method = "spearman", use = "complete.obs")
+
+# Heatmap
+ggcorrplot(corr, method = "circle", type = "lower", 
+           lab = TRUE, lab_size = 4, colors = c("red", "white", "blue"),
+           title = "Spearman Correlation Matrix") +
+  theme_minimal()
+
+dev.off()
+
+#  10.2. Pairplot
+ggpairs(num_vars, 
+        title = "Pairwise Comparisons of Age, Billing Amount, and LOS",
+        upper = list(continuous = wrap("cor", method = "spearman")),
+        lower = list(continuous = wrap("smooth", alpha = 0.5)),
+        diag = list(continuous = wrap("densityDiag"))) +
+  theme_minimal()
+
+dev.off()
+
+#  10.3. Violin Plot: Billing Amount by Medical Condition
+ggplot(df, aes(x = Medical.Condition, y = Billing.Amount)) +
+  geom_violin(fill = "skyblue", color = "black", trim = FALSE) +
+  stat_summary(fun = median, geom = "point", color = "red", size = 2) +
+  labs(title = "Billing Amount by Medical Condition", x = "Medical Condition", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
+
+#  11.1. Regression Analysis between Age & Billing Amount
+
+# Simple linear regression
+model1 <- lm(Billing.Amount ~ Age, data = df)
+summary(model1)
+
+# Regression Plot between Age & Billing Amount
+ggplot(df, aes(x = Age, y = Billing.Amount)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "red") +
+  labs(title = "Regression Line: Billing Amount vs Age",
+       x = "Age", y = "Billing Amount") +
+  theme_minimal()
+
+dev.off()
+
+# Residual Plot
+df$predicted <- predict(model1)
+df$residuals <- residuals(model1)
+
+ggplot(df, aes(x = predicted, y = residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, color = "red", method = "loess") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+  labs(title = "Residual Plot",
+       x = "Predicted Billing Amount", y = "Residuals") +
+  theme_minimal()
+
+dev.off()
+
+# 11.2. Multiple Regression Analysis 
+# Age, Billing Amount, LOS
+df_clean <- df %>% 
+  dplyr::select(Age, Length.of.Stay, Billing.Amount) %>%
+  mutate(across(everything(), as.numeric)) %>%
+  na.omit()
+
+# Fit the regression model
+model2 <- lm(Billing.Amount ~ Age + Length.of.Stay, data = df_clean)
+summary(model2)
+
+# Residuals and fitted values
+df_clean$Residuals <- residuals(model2)
+df_clean$Fitted <- fitted(model2)
+
+# Plot 1: Residual plot
+ggplot(df_clean, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, color = "red", method = "loess") +
+  labs(title = "Residual Plot",
+       x = "Fitted values", y = "Residuals") +
+  theme_minimal()
+
+dev.off()
+
+# Plot 2: Influence Plot (Cook's Distance vs Leverage)
+influencePlot(model2, main = "Influence Plot (Cook’s Distance vs Leverage)")
+
+# VIF Table
+vif_values <- vif(model2)
+vif_df <- data.frame(Variable = names(vif_values), VIF = vif_values)
+print(vif_df)
+
+dev.off()
