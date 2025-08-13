@@ -1,0 +1,1985 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gridExtra")
+install.packages("MASS")
+install.packages("nortest")
+install.packages("car")
+install.packages("ggpubr")
+install.packages("stats")
+install.packages("forcats")
+install.packages("ggthemes")
+install.packages("viridis")
+install.packages("vcd")
+install.packages("patchwork")
+install.packages("GGally")
+install.packages("ggcorrplot")
+install.packages("prophet")
+install.packages("forecast")
+install.packages("waffle")
+install.packages("treemapify")
+install.packages("wordcloud2")
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gridExtra)
+library(MASS)
+library(nortest)
+library(car)
+library(stats)
+library(forcats)
+library(ggthemes)
+library(viridis)
+library(vcd)
+library(patchwork)
+library(GGally)
+library(ggcorrplot)
+library(prophet)
+library(forecast)
+library(waffle)
+library(treemapify)
+library(wordcloud2)
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx")
+df <- admission_data
+
+# STEP 1: Data Exploration
+
+# Exploring top 10 rows
+top_10 <- admission_data %>% head(10)
+top_10
+
+# Unique gender values
+unique_genders <- admission_data %>% distinct(Gender)
+unique_genders
+
+# Age statistics
+age_summary <- admission_data %>%
+  summarize(
+    Maximum_Admission_Age = max(Age, na.rm = TRUE),
+    Minimum_Admission_Age = min(Age, na.rm = TRUE),
+    Average_Admission_Age = round(mean(Age, na.rm = TRUE), 0)
+  )
+age_summary
+
+# Finding median age
+median_age <- admission_data %>%
+  summarize(Median_Age = median(Age, na.rm = TRUE))
+median_age
+
+# Unique values for other columns
+unique_insurance_providers <- admission_data %>% distinct(`Insurance Provider`)
+unique_insurance_providers
+unique_blood_types <- admission_data %>% distinct(`Blood Type`)
+unique_blood_types
+unique_medical_conditions <- admission_data %>% distinct(`Medical Condition`)
+unique_medical_conditions
+unique_admission_types <- admission_data %>% distinct(`Admission Type`)
+unique_admission_types
+unique_test_results <- admission_data %>% distinct(`Test Results`)
+unique_test_results
+unique_medications <- admission_data %>% distinct(Medication)
+unique_medications
+
+# Count of unique doctors and hospitals
+number_of_doctors <- admission_data %>% distinct(Doctor) %>% count()
+number_of_doctors
+number_of_hospitals <- admission_data %>% distinct(Hospital) %>% count()
+number_of_hospitals
+
+# Discharge date statistics
+discharge_stats <- admission_data %>%
+  summarize(
+    Maximum_Discharge_Date = max(`Discharge Date`, na.rm = TRUE),
+    Minimum_Discharge_Date = min(`Discharge Date`, na.rm = TRUE),
+    Difference_in_Years = as.numeric(difftime(max(`Discharge Date`, na.rm = TRUE), min(`Discharge Date`, na.rm = TRUE), units = "weeks")) / 52,
+    Difference_in_Months = as.numeric(difftime(max(`Discharge Date`, na.rm = TRUE), min(`Discharge Date`, na.rm = TRUE), units = "days")) / 30,
+    Difference_in_Days = as.numeric(difftime(max(`Discharge Date`, na.rm = TRUE), min(`Discharge Date`, na.rm = TRUE), units = "days"))
+  )
+discharge_stats
+
+# Admission date statistics
+admission_stats <- admission_data %>%
+  summarize(
+    Maximum_Admission_Date = max(`Date of Admission`, na.rm = TRUE),
+    Minimum_Admission_Date = min(`Date of Admission`, na.rm = TRUE),
+    Difference_in_Years = as.numeric(difftime(max(`Date of Admission`, na.rm = TRUE), min(`Date of Admission`, na.rm = TRUE), units = "weeks")) / 52,
+    Difference_in_Months = as.numeric(difftime(max(`Date of Admission`, na.rm = TRUE), min(`Date of Admission`, na.rm = TRUE), units = "days")) / 30, # Approximate average days in a month
+    Difference_in_Days = as.numeric(difftime(max(`Date of Admission`, na.rm = TRUE), min(`Date of Admission`, na.rm = TRUE), units = "days"))
+  )
+admission_stats
+
+# Average length of stay in DAYs
+length_of_stay <- admission_data %>%
+  mutate(Length_of_Stay = as.numeric(difftime(`Discharge Date`, `Date of Admission`, units = "days"))) %>%
+  summarize(
+    Average_Length_of_Stay = mean(Length_of_Stay, na.rm = TRUE),
+    Maximum_Length_of_Stay = max(Length_of_Stay, na.rm = TRUE),
+    Minimum_Length_of_Stay = min(Length_of_Stay, na.rm = TRUE)
+  )
+length_of_stay
+
+# Billing statistics
+billing_summary <- admission_data %>%
+  summarize(
+    The_Minimum_Bill = round(min(`Billing Amount`, na.rm = TRUE), 2),
+    The_Maximum_Bill = round(max(`Billing Amount`, na.rm = TRUE), 2),
+    Difference = round(max(`Billing Amount`, na.rm = TRUE) - min(`Billing Amount`, na.rm = TRUE), 2),
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 2)
+  )
+billing_summary
+
+# Finding negative bills
+negative_bills <- admission_data %>% filter(`Billing Amount` < 0)
+negative_bills
+
+# Small bills between $0 and $50
+small_bills <- admission_data %>% filter(`Billing Amount` >= 0 & `Billing Amount` <= 50)
+small_bills
+
+# STEP 2: Data Cleaning & Processing
+
+# Normalize patient names
+admission_data <- admission_data %>%
+  mutate(
+    Patient_First_Name = str_to_title(word(Name, 1)),
+    Patient_Last_Name  = str_to_title(word(Name, -1)),
+    Doctor_First_Name  = str_to_title(word(Doctor, 1)),
+    Doctor_Last_Name   = str_to_title(word(Doctor, -1))
+  )
+top_10 <- admission_data %>% head(10)
+top_10
+
+# Finding NULL values
+null_values <- admission_data %>%
+  filter(is.na(Name) | Name == "" | 
+           is.na(Doctor) | Doctor == "" |
+           is.na(`Billing Amount`) | `Billing Amount` <= 0 |
+           is.na(`Admission Type`) | `Admission Type` == "" |
+           is.na(`Medical Condition`) | `Medical Condition` == "" |
+           is.na(Age) | Age <= 0 |
+           is.na(`Date of Admission`) | is.na(`Hospital`) | `Hospital` == "" |
+           is.na(Gender) | Gender == "" |
+           is.na(`Blood Type`) | `Blood Type` == "" |
+           is.na(`Insurance Provider`) | `Insurance Provider` == "" |
+           is.na(`Room Number`) | `Room Number` == "" |
+           is.na(Medication) | is.na(`Discharge Date`) |
+           is.na(`Test Results`) | `Test Results` == "")
+null_values
+
+# Removing duplicates
+admission_data <- admission_data %>%
+  distinct(Name, `Date of Admission`, .keep_all = TRUE)
+admission_data
+
+# Standardize gender
+admission_data <- admission_data %>%
+  mutate(Gender = case_when(
+    tolower(Gender) %in% c('m', 'male', 'man', 'boy', 'men') ~ 'Male',
+    tolower(Gender) %in% c('f', 'female', 'woman', 'girl', 'women') ~ 'Female',
+    TRUE ~ Gender
+  ))
+
+# Standardize dates
+admission_data <- admission_data %>%
+  mutate(
+    `Date of Admission` = as.Date(`Date of Admission`, format = "%Y-%m-%d"),
+    `Discharge Date` = as.Date(`Discharge Date`, format = "%Y-%m-%d")
+  )
+
+# Create analysis table
+analysis_table <- admission_data %>%
+  dplyr::select(Patient_First_Name, Patient_Last_Name, Age, Gender, `Blood Type`, 
+                `Medical Condition`, `Date of Admission`, Doctor_First_Name, 
+                Doctor_Last_Name, Hospital, `Insurance Provider`, `Billing Amount`, 
+                `Room Number`, `Admission Type`, `Discharge Date`, Medication, 
+                `Test Results`)
+
+# Finding & Removing Titles from Patients' & Doctors' Names to avoid errors while aggregation
+
+titles_pattern <- "(?i)^(dr\\.?|mr\\.?|mrs\\.?|miss|ms\\.?|prof\\.?|md\\.?|dds\\.?|dvm\\.?|do\\.?|phd\\.?|jr\\.?|sr\\.?)\\s*"
+
+analysis_table <- analysis_table %>%
+  mutate(
+    
+    Doctor_First_Name = str_remove_all(Doctor_First_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    Doctor_Last_Name  = str_remove_all(Doctor_Last_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    Patient_First_Name = str_remove_all(Patient_First_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    Patient_Last_Name  = str_remove_all(Patient_Last_Name, paste0("^(", titles_pattern, "\\s*)+")) %>% str_trim(),
+    
+    
+    Doctor_First_Name = if_else(Doctor_First_Name == "" | is.na(Doctor_First_Name),
+                                word(Doctor_Last_Name, 1), 
+                                Doctor_First_Name),
+    Patient_First_Name = if_else(Patient_First_Name == "" | is.na(Patient_First_Name),
+                                 word(Patient_Last_Name, 1), 
+                                 Patient_First_Name)
+  )
+
+View(analysis_table)
+
+# STEP 3: Analysis & Insights
+
+# Finding top 10 Doctor who treated most patients & Explore the correlation with total bill
+# Finding top 10 Doctor who made highest bills & Explore the correlation with No. of patients treated
+
+top_doctors_by_patients <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    total_Bill = sum(`Billing Amount`, na.rm = TRUE)
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated)) %>%
+  slice_head(n = 10)
+top_doctors_by_patients
+
+top_doctors_by_bill <- analysis_table %>%
+  filter(!is.na(Doctor_First_Name), Doctor_First_Name != "",
+         !is.na(Doctor_Last_Name),  Doctor_Last_Name != "") %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(total_Bill)) %>%
+  slice_head(n = 10)
+top_doctors_by_bill
+
+# Pearson Correlation Test
+
+cor_test_result <- cor.test(
+  top_doctors_by_patients$Number_of_Patients_Treated,
+  top_doctors_by_patients$total_Bill
+)
+cor_test_result
+
+ggplot(top_doctors_by_patients, aes(x = reorder(paste(Doctor_First_Name, Doctor_Last_Name), -Number_of_Patients_Treated), y = Number_of_Patients_Treated)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Top 10 Doctors by Number of Patients Treated", x = "Doctor", y = "Patients Treated") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(top_doctors_by_bill, aes( x = reorder(paste(Doctor_First_Name, Doctor_Last_Name), -total_Bill), y = total_Bill)) +
+  geom_col(fill = "skyblue2") +
+  labs(title = "Top 10 Doctors by Total Billing Amount", x = "Doctor", y = "Total Bill") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(top_doctors_by_patients, aes(x = Number_of_Patients_Treated, y = total_Bill)) +
+  geom_point(color = "purple", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Correlation Between Number of Patients and Total Bill", x = "Patients Treated", y = "Total Bill") +
+  theme_minimal()
+
+# Designing a NEW Table for Complex Analysis, Insights, and Predictions
+analysis_table <- analysis_table %>%
+  mutate(
+    Patient_First_Name = Patient_First_Name,
+    Patient_Last_Name = Patient_Last_Name,
+    Age = Age, 
+    Gender = Gender, 
+    Blood_Type = `Blood Type`, 
+    Medical_Condition = `Medical Condition`, 
+    Date_of_Admission = `Date of Admission`,  
+    Doctor_First_Name = Doctor_First_Name, 
+    Doctor_Last_Name = Doctor_Last_Name,
+    Hospital = Hospital, 
+    Insurance_Provider = `Insurance Provider`,
+    Billing_Amount = round(`Billing Amount`, 2), 
+    Room_Number = `Room Number`,
+    Admission_Type = `Admission Type`, 
+    Discharge_Date = `Discharge Date`, 
+    Medication = Medication, 
+    Test_Results = `Test Results`,
+    
+    # Extract Admission date features
+    Admission_Year = year(`Date of Admission`),
+    Admission_Month = month(`Date of Admission`),
+    Admission_Week = isoweek(`Date of Admission`),
+    Admission_Day = day(`Date of Admission`),
+    Admission_WeekDay_Number = wday(`Date of Admission`, label = FALSE),
+    Admission_WeekDay_Name = wday(`Date of Admission`, label = TRUE, abbr = FALSE),
+    
+    # Extract Discharge date features
+    Discharge_Year = year(`Discharge Date`),
+    Discharge_Month = month(`Discharge Date`),
+    Discharge_Week = isoweek(`Discharge Date`),
+    Discharge_Day = day(`Discharge Date`),
+    Discharge_WeekDay_Number = wday(`Discharge Date`, label = FALSE),
+    Discharge_WeekDay_Name = wday(`Discharge Date`, label = TRUE, abbr = FALSE),
+    
+    # Length of stay
+    Length_of_Stay_in_Days = as.integer(difftime(`Discharge Date`, `Date of Admission`, units = "days")),
+    Length_of_Stay_in_Months = interval(`Date of Admission`, `Discharge Date`) %/% months(1),
+    
+    
+    # Gender binary columns
+    Male = if_else(Gender == "Male", 1, 0),
+    Female = if_else(Gender == "Female", 1, 0),
+    
+    # Medical Conditions
+    Arthritis = if_else(`Medical Condition` == "Arthritis", 1, 0),
+    Asthma = if_else(`Medical Condition` == "Asthma", 1, 0),
+    Cancer = if_else(`Medical Condition` == "Cancer", 1, 0),
+    Diabetes = if_else(`Medical Condition` == "Diabetes", 1, 0),
+    Hypertension = if_else(`Medical Condition` == "Hypertension", 1, 0),
+    Obesity = if_else(`Medical Condition` == "Obesity", 1, 0),
+    
+    # Age ranges
+    Age_Range = case_when(
+      Age < 18 ~ "BELOW 18",
+      Age >= 18 & Age < 30 ~ "BETWEEN 18 & 30",
+      Age >= 30 & Age < 45 ~ "BETWEEN 30 & 45",
+      Age >= 45 & Age < 60 ~ "BETWEEN 45 & 60",
+      Age >= 60 ~ "Above 60"
+    ),
+    Below_18 = if_else(Age < 18, 1, 0),
+    Between_18_30 = if_else(Age >= 18 & Age < 30, 1, 0),
+    Between_30_45 = if_else(Age >= 30 & Age < 45, 1, 0),
+    Between_45_60 = if_else(Age >= 45 & Age < 60, 1, 0),
+    Above_60 = if_else(Age >= 60, 1, 0),
+    
+    # Length of Stay Categories
+    Length_of_Stay_Category = case_when(
+      Length_of_Stay_in_Days < 3 ~ "Below 3 Days",
+      Length_of_Stay_in_Days >= 3 & Length_of_Stay_in_Days < 7 ~ "Between 3 & 7 Days",
+      Length_of_Stay_in_Days >= 7 & Length_of_Stay_in_Days < 15 ~ "Between 7 & 15 Days",
+      Length_of_Stay_in_Days >= 15 ~ "Above 15 Days"
+    ),
+    Below_3_Days = if_else(Length_of_Stay_in_Days < 3, 1, 0),
+    Between_3_7_Days = if_else(Length_of_Stay_in_Days >= 3 & Length_of_Stay_in_Days < 7, 1, 0),
+    Between_7_15_Days = if_else(Length_of_Stay_in_Days >= 7 & Length_of_Stay_in_Days < 15, 1, 0),
+    Above_15_Days = if_else(Length_of_Stay_in_Days >= 15, 1, 0),
+    
+    # Insurance Providers
+    MedHealth = if_else(`Insurance Provider` == "MedHealth", 1, 0),
+    SecureLife = if_else(`Insurance Provider` == "SecureLife", 1, 0),
+    CarePlus = if_else(`Insurance Provider` == "CarePlus", 1, 0),
+    LifeShield = if_else(`Insurance Provider` == "LifeShield", 1, 0),
+    HealthFirst = if_else(`Insurance Provider` == "HealthFirst", 1, 0),
+    
+    # Medication columns
+    Amoxicillin = if_else(`Medication` == "Amoxicillin", 1, 0),
+    Azithromycin = if_else(`Medication` == "Azithromycin", 1, 0),
+    Ibuprofen = if_else(`Medication` == "Ibuprofen", 1, 0),
+    Lisinopril = if_else(`Medication` == "Lisinopril", 1, 0),
+    Metformin = if_else(`Medication` == "Metformin", 1, 0),
+    Omeprazole = if_else(`Medication` == "Omeprazole", 1, 0),
+    Simvastatin = if_else(`Medication` == "Simvastatin", 1, 0),
+    
+    # Blood Type columns
+    A_Positive = if_else(`Blood Type` == "A+", 1, 0),
+    B_Positive = if_else(`Blood Type` == "B+", 1, 0),
+    AB_Positive = if_else(`Blood Type` == "AB+", 1, 0),
+    O_Positive = if_else(`Blood Type` == "O+", 1, 0),
+    A_Negative = if_else(`Blood Type` == "A-", 1, 0),
+    B_Negative = if_else(`Blood Type` == "B-", 1, 0),
+    AB_Negative = if_else(`Blood Type` == "AB-", 1, 0),
+    O_Negative = if_else(`Blood Type` == "O-", 1, 0),
+    
+    # Billing range category
+    Billing_Range = case_when(
+      `Billing Amount` < 100 ~ "Below 100$",
+      `Billing Amount` >= 100 & `Billing Amount` < 1000 ~ "Between 100 & 1000$",
+      `Billing Amount` >= 1000 & `Billing Amount` < 5000 ~ "Between 1000 & 5000$",
+      `Billing Amount` >= 5000 & `Billing Amount` < 10000 ~ "Between 5000 & 10000$",
+      `Billing Amount` >= 10000 & `Billing Amount` < 25000 ~ "Between 10000 & 25000$",
+      `Billing Amount` >= 25000 & `Billing Amount` < 50000 ~ "Between 25000 & 50000$",
+      `Billing Amount` > 50000 ~ "Above 50000$"
+    ),
+    
+    # Billing range dummy variables
+    Below_100 = if_else(`Billing Amount` < 100, 1, 0),
+    Between_100_1000 = if_else(`Billing Amount` >= 100 & `Billing Amount` < 1000, 1, 0),
+    Between_1000_5000 = if_else(`Billing Amount` >= 1000 & `Billing Amount` < 5000, 1, 0),
+    Between_5000_10000 = if_else(`Billing Amount` >= 5000 & `Billing Amount` < 10000, 1, 0),
+    Between_10000_25000 = if_else(`Billing Amount` >= 10000 & `Billing Amount` < 25000, 1, 0),
+    Between_25000_50000 = if_else(`Billing Amount` >= 25000 & `Billing Amount` < 50000, 1, 0),
+    Above_50000 = if_else(`Billing Amount` > 50000, 1, 0),
+    
+    # Day of Admission (string format)
+    Day_of_Admission = weekdays(`Date of Admission`),
+    
+    # Dummy columns for each weekday
+    Monday = if_else(weekdays(`Date of Admission`) == "Monday", 1, 0),
+    Tuesday = if_else(weekdays(`Date of Admission`) == "Tuesday", 1, 0),
+    Wednesday = if_else(weekdays(`Date of Admission`) == "Wednesday", 1, 0),
+    Thursday = if_else(weekdays(`Date of Admission`) == "Thursday", 1, 0),
+    Friday = if_else(weekdays(`Date of Admission`) == "Friday", 1, 0),
+    Saturday = if_else(weekdays(`Date of Admission`) == "Saturday", 1, 0),
+    Sunday = if_else(weekdays(`Date of Admission`) == "Sunday", 1, 0)
+  )
+
+library(dplyr)
+
+# Function to calculate percentages
+calculate_percentage <- function(data, column_name) {
+  data %>%
+    group_by(across(all_of(column_name))) %>%
+    summarise(Total_Patients = n(), .groups = "drop") %>%
+    mutate(Percentage = round((Total_Patients / sum(Total_Patients)) * 100, 2)) %>%
+    arrange(desc(Percentage))
+}
+
+# Blood Type Percentages
+blood_type_percent <- calculate_percentage(analysis_table, "Blood Type")
+blood_type_percent
+
+ggplot(blood_type_percent, aes(x = "", y = Percentage, fill = `Blood Type`)) +
+  geom_col(width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Blood Type Distribution") +
+  theme_void()
+
+# Gender Percentages
+gender_percent <- calculate_percentage(analysis_table, "Gender")
+gender_percent
+
+gender_percent <- gender_percent %>%
+  mutate(Percentage = round(Percentage))
+
+# Waffle chart
+waffle(
+  parts = setNames(gender_percent$Percentage, gender_percent$Gender),
+  rows = 5,                      # Number of rows in the waffle chart
+  colors = c("#1f77b4", "#ff7f0e"),  # Adjust colors for male/female
+  title = "Gender Distribution",
+  xlab = "1 square = 1%"
+)
+
+# Medical Condition Percentages
+medical_condition_percent <- calculate_percentage(analysis_table, "Medical Condition")
+medical_condition_percent
+
+ggplot(medical_condition_percent, aes(x = reorder(`Medical Condition`, Percentage), y = Percentage)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Medical Condition Distribution", x = "Condition", y = "Percentage") +
+  theme_minimal()
+
+# Insurance Provider Percentages
+insurance_provider_percent <- calculate_percentage(analysis_table, "Insurance Provider")
+insurance_provider_percent
+
+ggplot(insurance_provider_percent, aes(x = reorder(`Insurance Provider`, Percentage), y = Percentage)) +
+  ggplot(insurance_provider_percent,
+         aes(
+           area = Percentage,
+           fill = Percentage,
+           label = `Insurance Provider`
+         )) +
+  geom_treemap() +
+  geom_treemap_text(colour = "white",
+                    place = "centre",
+                    grow = TRUE) +
+  scale_fill_gradient(low = "lightgreen", high = "darkgreen") +
+  labs(title = "Insurance Provider Distribution") +
+  theme_minimal()
+
+# Admission Type Percentages
+admission_type_percent <- calculate_percentage(analysis_table, "Admission Type")
+admission_type_percent
+
+# Ensure data is ordered
+admission_type_percent <- admission_type_percent %>%
+  arrange(desc(Percentage))
+
+# Create donut chart
+ggplot(admission_type_percent,
+       aes(x = 2, y = Percentage, fill = `Admission Type`)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y", start = 0) +
+  xlim(0.5, 2.5) +  # creates the donut hole
+  labs(title = "Admission Type Distribution",
+       fill = "Admission Type") +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+
+# Medication Percentages
+medication_percent <- calculate_percentage(analysis_table, "Medication")
+medication_percent
+
+ggplot(medication_percent, aes(x = reorder(Medication, Percentage), y = Percentage)) +
+  geom_segment(aes(xend = Medication, y = 0, yend = Percentage), color = "gray60", size = 1) +
+  geom_point(color = "purple", size = 4) +
+  coord_flip() +
+  labs(title = "Medication Distribution (Lollipop Chart)",
+       x = "Medication", y = "Percentage") +
+  theme_minimal()
+
+# View Percentages
+print(blood_type_percent)
+print(gender_percent)
+print(medical_condition_percent)
+print(insurance_provider_percent)
+print(admission_type_percent)
+print(medication_percent)
+
+# Most Billed Doctor Based on AVG, MAX, SUM, and Number of patients for billed amount
+top_doctors_all <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 0),
+    Total_Billing_Amount = round(sum(`Billing Amount`, na.rm = TRUE), 0),
+    Maximum_Billing_Amount = round(max(`Billing Amount`, na.rm = TRUE), 0),
+    Number_of_Patients = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(top_doctors_all)
+
+# Most Billed Docter Based on AVG, MAX, SUM, and Number of patients for billed amount in last 3 month
+
+max_date <- max(analysis_table$`Date of Admission`, na.rm = TRUE)
+date_threshold <- max_date %m-% months(3)
+
+top_doctors_3months <- analysis_table %>%
+  filter(`Date of Admission` >= date_threshold) %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 0),
+    Total_Billing_Amount = round(sum(`Billing Amount`, na.rm = TRUE), 0),
+    Maximum_Billing_Amount = round(max(`Billing Amount`, na.rm = TRUE), 0),
+    Number_of_Patients = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(top_doctors_3months)
+
+# Doctors Who Treated the Most Patients
+
+most_patients_doctors <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    Average_Billing_Amount = mean(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated), desc(Average_Billing_Amount)) %>%
+  slice_head(n = 10)
+
+print(most_patients_doctors)
+
+# Doctors Who Treated the Most Patients in the Last 3 Months
+
+max_date <- max(analysis_table$`Date of Admission`, na.rm = TRUE)
+date_threshold <- max_date %m-% months(3)
+
+most_recent_doctors <- analysis_table %>%
+  filter(`Date of Admission` >= date_threshold) %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    Average_Billing_Amount = mean(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated), desc(Average_Billing_Amount)) %>%
+  slice_head(n = 10)
+
+print(most_recent_doctors)
+
+# Hospitals That Treated the Most Patients
+
+most_patients_hospitals <- analysis_table %>%
+  group_by(Hospital) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 2),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated), desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(most_patients_hospitals)
+
+# Most Billed Hospitals
+
+most_billed_hospitals <- analysis_table %>%
+  group_by(Hospital) %>%
+  summarise(
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 0),
+    Total_Billing_Amount = round(sum(`Billing Amount`, na.rm = TRUE), 0),
+    Maximum_Billing_Amount = round(max(`Billing Amount`, na.rm = TRUE), 0),
+    Number_of_Patients = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(most_billed_hospitals)
+
+# Number of Doctors who Treated more than one patient
+
+num_doctors_gt1_patient <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(Number_of_Patients = n(), .groups = "drop") %>%
+  filter(Number_of_Patients > 1) %>%
+  summarise(Count = n())
+
+print(num_doctors_gt1_patient)
+
+# Percent of Doctors that treated more than 1 patients
+
+# Step 1: Count number of patients per doctor
+doctor_counts <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(Number_of_Patients = n(), .groups = "drop")
+
+# Step 2: Categorize doctors into two groups
+more_than_one <- doctor_counts %>%
+  filter(Number_of_Patients > 1) %>%
+  nrow()
+
+equal_one <- doctor_counts %>%
+  filter(Number_of_Patients == 1) %>%
+  nrow()
+
+# Step 3: Calculate percentage
+total <- more_than_one + equal_one
+
+result <- data.frame(
+  Sum_more_than_1 = more_than_one,
+  Sum_equal_1 = equal_one,
+  Percentage = round((more_than_one / total) * 100, 2)
+)
+
+print(result)
+
+# Billing Based on Month & Year to find trends
+billing_trends <- analysis_table %>%
+  mutate(
+    Admission_Year = year(`Date of Admission`),
+    Admission_Month = month(`Date of Admission`)
+  ) %>%
+  group_by(Admission_Year, Admission_Month) %>%
+  summarise(
+    Total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    Average_Bill = mean(`Billing Amount`, na.rm = TRUE),
+    Maximum_Bill = max(`Billing Amount`, na.rm = TRUE),
+    Minimum_Bill = min(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Admission_Date = ymd(paste(Admission_Year, Admission_Month, "01", sep = "-"))
+  ) %>% 
+  arrange(Admission_Date)
+
+# Plot
+ggplot(billing_trends, aes(x = Admission_Date)) +
+  geom_line(aes(y = Total_Bill), color = "royalblue", linewidth = 1) +
+  geom_point(aes(y = Total_Bill), color = "red") +
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "3 months") +
+  labs(
+    title = "Total Billing Amount Trend by Month and Year",
+    x = "Admission Date (Year-Month)",
+    y = "Total Billing Amount"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Billing based on Month (aggregated across years)
+billing_by_month <- analysis_table %>%
+  mutate(Admission_Month = month(`Date of Admission`)) %>%
+  group_by(Admission_Month) %>%
+  summarise(
+    Total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    Average_Bill = mean(`Billing Amount`, na.rm = TRUE),
+    Maximum_Bill = max(`Billing Amount`, na.rm = TRUE),
+    Minimum_Bill = min(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Bill))
+
+print(billing_by_month)
+
+# Billing based on Year
+billing_by_year <- analysis_table %>%
+  mutate(Admission_Year = year(`Date of Admission`)) %>%
+  group_by(Admission_Year) %>%
+  summarise(
+    Total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    Average_Bill = mean(`Billing Amount`, na.rm = TRUE),
+    Maximum_Bill = max(`Billing Amount`, na.rm = TRUE),
+    Minimum_Bill = min(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Bill))
+
+print(billing_by_year)
+
+# Number of patients Based on Month & Year to find trends
+
+# Prepare dataset with Year-Month and Year extracted
+df <- analysis_table %>%
+  mutate(
+    Year_Month = format(`Date of Admission`, "%Y-%m"),
+    Admission_Year = year(`Date of Admission`)
+  )
+
+# Count patients per Year-Month & Medical Condition
+patient_counts <- df %>%
+  group_by(Year_Month, Admission_Year, `Medical Condition`) %>%
+  summarise(Patients_Per_Condition = n(), .groups = "drop")
+
+# Total patients per year per medical condition
+yearly_total <- df %>%
+  group_by(Admission_Year, `Medical Condition`) %>%
+  summarise(Total_Patients_In_Year = n(), .groups = "drop")
+
+# Join counts with totals
+joined <- patient_counts %>%
+  inner_join(yearly_total, by = c("Admission_Year", "Medical Condition"))
+
+# Rank months per medical condition by Patients_Per_Condition (descending)
+ranked <- joined %>%
+  group_by(`Medical Condition`) %>%
+  arrange(desc(Patients_Per_Condition)) %>%
+  mutate(Month_Rank = row_number()) %>%
+  ungroup()
+
+# Filter to top 3 months only
+top_months <- ranked %>%
+  filter(Month_Rank <= 3) %>%
+  mutate(
+    Percent = round(Patients_Per_Condition * 100 / Total_Patients_In_Year, 2)
+  )
+
+# Pivot wider so each Medical Condition has Top 3 months in separate columns
+result <- top_months %>%
+  dplyr::select(`Medical Condition`, Month_Rank, Year_Month, Patients_Per_Condition, Percent) %>%
+  pivot_wider(
+    names_from = Month_Rank,
+    values_from = c(Year_Month, Patients_Per_Condition, Percent),
+    names_glue = "{.value}{Month_Rank}"
+  ) %>%
+  arrange(`Medical Condition`)
+
+print(result)
+
+# STEP 4: Diagnostic Analysis 
+
+
+# Load the data
+analysis_table <- read.csv("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.csv")
+df <- analysis_table
+
+# 1. Checking Distributions
+# 1.1. Age Distribution
+age_data <- na.omit(df$Age)
+
+# 1.1.1. Histogram
+ggplot(data.frame(Age = age_data), aes(x = Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle("Age Distribution") +
+  xlab("Age") +
+  ylab("Frequency")
+
+dev.off()
+
+# 1.1.2. Boxplot
+ggplot(data.frame(Age = age_data), aes(x = "", y = Age)) +
+  geom_boxplot() +
+  ggtitle("Boxplot of Age")
+
+dev.off()
+
+# 1.1.3. Q-Q Plot
+qqnorm(age_data)
+qqline(age_data)
+title("Q-Q Plot for Age")
+
+dev.off()
+
+# 1.1.4. Kolmogorov-Smirnov Test
+ks_test <- ks.test(age_data, "pnorm", mean = mean(age_data), sd = sd(age_data))
+cat("\nKolmogorov–Smirnov Test:\n")
+cat(sprintf("Statistic = %f, p-value = %f\n", ks_test$statistic, ks_test$p.value))
+
+# 1.1.5. Anderson-Darling Test
+ad_test <- ad.test(age_data)
+cat("\nAnderson-Darling Test:\n")
+cat(sprintf("Statistic = %f\n", ad_test$statistic))
+for (i in seq_along(ad_test$critical.values)) {
+  cat(sprintf("Significance Level %f: Critical Value = %f\n", ad_test$significance.level[i], ad_test$critical.values[i]))
+}
+
+# Set Coordinates
+par(mfrow = c(3, 2))
+
+# 1) Log Transformation
+log_age <- log(age_data)
+
+ggplot(data.frame(Log_Age = log_age), aes(x = Log_Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle("Histogram - Log Transformed Age")
+
+dev.off()
+
+qqnorm(log_age)
+qqline(log_age)
+title("Q-Q Plot - Log Transformed Age")
+
+dev.off()
+
+# 2) Square Root Transformation
+sqrt_age <- sqrt(age_data)
+
+ggplot(data.frame(Sqrt_Age = sqrt_age), aes(x = Sqrt_Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle("Histogram - Square Root Transformed Age")
+
+dev.off()
+
+qqnorm(sqrt_age)
+qqline(sqrt_age)
+title("Q-Q Plot - Square Root Transformed Age")
+
+dev.off()
+
+# 3) Box-Cox Transformation 
+boxcox_result <- boxcox(lm(age_data ~ 1), lambda = seq(-2, 2, by = 0.1))
+fitted_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+boxcox_age <- (age_data^fitted_lambda - 1) / fitted_lambda
+
+dev.off()
+
+ggplot(data.frame(Boxcox_Age = boxcox_age), aes(x = Boxcox_Age)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_density(color = "red") +
+  ggtitle(sprintf("Histogram - Box-Cox (λ=%.2f)", fitted_lambda))
+
+dev.off()
+
+qqnorm(boxcox_age)
+qqline(boxcox_age)
+title("Q-Q Plot - Box-Cox Transformed Age")
+
+par(mfrow = c(1, 1))
+
+dev.off()
+
+# 1.2. Billing Amount
+# 1.2.1. Histogram
+
+bill_data <- df$Billing.Amount[!is.na(df$Billing.Amount)]
+
+num_bins <- 30
+
+binwidth <- (max(bill_data) - min(bill_data)) / num_bins
+
+n <- length(bill_data)
+
+
+ggplot(data.frame(Billing.Amount = bill_data), aes(x = Billing.Amount)) +
+  geom_histogram(bins = num_bins, fill = "blue", color = "black", alpha = 0.7) +
+  geom_density(aes(y = ..density.. * n * binwidth), color = "red", size = 1) +
+  labs(title = "Distribution of Billing Amount", x = "Billing Amount", y = "Frequency") +
+  theme_minimal()
+
+dev.off()
+
+# 1.2.2. Boxplot
+ggplot(data.frame(BillingAmount = bill_data), aes(x = "", y = BillingAmount)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Bill", x = "", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+dev.off()
+
+# 1.2.3. Q-Q Plot
+qqPlot(bill_data, main = "Q-Q Plot for Bill", ylab = "Billing Amount", xlab = "Theoretical Quantiles")
+dev.off()
+
+# 1.2.4. Kolmogorov-Smirnov Test
+ks_test <- ks.test(bill_data, "pnorm", mean(bill_data), sd(bill_data))
+cat("\nKolmogorov–Smirnov Test:\n")
+cat("Statistic =", ks_test$statistic, ", p-value =", ks_test$p.value, "\n")
+
+# 1.2.5. Anderson-Darling Test
+ad_test <- ad.test(bill_data)
+cat("\nAnderson-Darling Test:\n")
+cat("Statistic =", ad_test$statistic, "\n")
+cat("Critical Values:\n")
+for (i in seq_along(ad_test$critical.values)) {
+  cat("Significance Level", ad_test$significance.levels[i], ": Critical Value =", ad_test$critical.values[i], "\n")
+}
+
+# Bill is not normally distributed
+# Attempts to make corrections of Bill
+
+# Set Coordinates
+par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
+
+# 1) Log Transformation
+log_bill <- log(bill_data)
+hist(log_bill, probability = TRUE, main = "Histogram - Log Transformed Bill", xlab = "Log Transformed Billing Amount", breaks = 30, col = "blue", border = "black")
+qqnorm(log_bill, main = "Q-Q Plot - Log Transformed Bill", ylab = "Log Transformed Billing Amount")
+qqline(log_bill, col = "red")
+
+# 2) Square Root Transformation
+sqrt_bill <- sqrt(bill_data)
+hist(sqrt_bill, probability = TRUE, main = "Histogram - Square Root Transformed Bill", xlab = "Square Root Transformed Billing Amount", breaks = 30, col = "blue", border = "black")
+qqnorm(sqrt_bill, main = "Q-Q Plot - Square Root Transformed Bill", ylab = "Square Root Transformed Billing Amount")
+qqline(sqrt_bill, col = "red")
+
+
+par(mfrow = c(1, 1), mar = c(5, 4, 4, 2) + 0.1)
+
+dev.off()
+
+# 1.3. Length of Stay
+
+# Make sure that both date of admission and discharge date columns are datetime type
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+
+# Calculate Length of Stay
+df$Length.of.Stay <- as.numeric(df$Discharge.Date - df$Date.of.Admission)
+
+los <- na.omit(df$Length.of.Stay)
+
+# 1.3.1 Histogram
+ggplot(data.frame(los), aes(x=los)) +
+  geom_histogram(aes(y=..density..), bins=29, fill="blue", alpha=0.5) +
+  geom_density(color="red") +
+  labs(title="Distribution of Length of Stay", x="Days", y="Frequency") +
+  theme_minimal()
+
+dev.off()
+
+# 1.3.2. Boxplot
+ggplot(data.frame(los), aes(x=los)) +
+  geom_boxplot() +
+  labs(title="Box Plot of Length of Stay", x="Days") +
+  theme_minimal()
+
+dev.off()
+
+# 1.3.3. Q-Q plot
+qqnorm(los)
+qqline(los)
+title("Q-Q Plot for Length of Stay")
+
+dev.off()
+
+# 1.3.4. Kolmogorov-Smirnov Test
+ks_test <- ks.test(los, "pnorm", mean=mean(los), sd=sd(los))
+cat("\nKolmogorov–Smirnov Test:\n")
+cat(sprintf("Statistic = %.4f, p-value = %.4f\n", ks_test$statistic, ks_test$p.value))
+
+# 1.3.5. Anderson-Darling test
+ad_test <- ad.test(los)
+cat(sprintf("Anderson-Darling: statistic=%.4f\n", ad_test$statistic))
+for (i in 1:length(ad_test$critical.values)) {
+  cat(sprintf("  Significance Level %.1f%%: Critical Value = %.4f\n", ad_test$significance.level[i], ad_test$critical.values[i]))
+}
+
+# Length of Stay is not normally distributed
+# ANOVA, t-test, paired t-test, pearson r can NOT be used (Data not Normally Distributed)
+# Non-parametric Tests should be used (Kruskal-Wallis H, Mann-Whitney U, Wilcoxon signed-rank test, Spearman correlation)
+
+#  2. Finding Outliers: Using interquartile range and boxplot
+
+#  2.1. Age Outliers
+#  2.1.1. InterQuartile Range Method
+Q1 <- quantile(df$Age, 0.25)
+Q3 <- quantile(df$Age, 0.75)
+IQR <- Q3 - Q1
+
+# Range of Allowed Values
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers <- df[df$Age < lower_bound | df$Age > upper_bound, ]
+
+cat(sprintf("Number of Outliers = %d\n", nrow(outliers)))
+print(outliers[, "Age", drop = FALSE])
+
+# Further Illustration
+cat(sprintf("Q1 = %f, Q3 = %f, IQR = %f\n", Q1, Q3, IQR))
+cat(sprintf("Lower Bound = %f, Upper Bound = %f\n", lower_bound, upper_bound))
+cat(sprintf("Age range: %f → %f\n", min(df$Age), max(df$Age)))
+
+dev.off()
+
+# 2.1.2. Boxplot Method with different colored points for outliers
+age_df <- data.frame(Age = age_data)
+age_df$Outlier <- ifelse(age_df$Age < lower_bound | age_df$Age > upper_bound, 'Outlier', 'Normal')
+
+
+# Construct boxplot
+ggplot(age_df, aes(x = "", y = Age)) +
+  geom_boxplot(fill = "lightgray") +
+  geom_jitter(aes(color = Outlier), size = 3, width = 0.2) +
+  scale_color_manual(values = c('Normal' = 'blue', 'Outlier' = 'red')) +
+  labs(title = "Boxplot of Age with Outliers Highlighted", x = "Age") +
+  theme(legend.title = element_blank())
+
+dev.off()
+
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+#  2.2. Bill Outliers
+#  2.2.1. InterQuartile Range Method
+Q1 <- quantile(df$Billing.Amount, 0.25)
+Q3 <- quantile(df$Billing.Amount, 0.75)
+IQR <- Q3 - Q1
+
+# Range of Allowed Values
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers <- df %>% filter(Billing.Amount < lower_bound | Billing.Amount > upper_bound)
+
+cat(sprintf("Number of Outliers = %d\n", nrow(outliers)))
+print(outliers %>% dplyr::select(Billing.Amount))
+
+# Further Illustration
+cat(sprintf("Q1 = %f, Q3 = %f, IQR = %f\n", Q1, Q3, IQR))
+cat(sprintf("Lower Bound = %f, Upper Bound = %f\n", lower_bound, upper_bound))
+cat(sprintf("Billing Amount Range: %f → %f\n", min(df$`Billing Amount`), max(df$`Billing Amount`)))
+
+#  2.2.2. Boxplot Method
+# Construct New Dataframe for outliers values
+bill_df <- data.frame(Billing.Amount = bill_data)
+bill_df$Outlier <- ifelse(bill_df$Billing.Amount < lower_bound | bill_df$Billing.Amount > upper_bound, 'Outlier', 'Normal')
+
+# Construct boxplot
+ggplot(bill_df, aes(x = "", y = Billing.Amount, color = Outlier)) +
+  geom_boxplot(fill = "lightgray") +
+  geom_jitter(size = 3, width = 0.2) +
+  scale_color_manual(values = c("Normal" = "blue", "Outlier" = "red")) +
+  ggtitle("Boxplot of Billing Amount with Outliers Highlighted") +
+  xlab("") + ylab("Billing Amount") +
+  theme(legend.title = element_blank())
+
+dev.off()
+
+#  2.3. Length of Stay Outliers
+#  2.3.1. InterQuartile Range Method
+
+Q1 <- quantile(df$los, 0.25)
+Q3 <- quantile(df$los, 0.75)
+IQR <- Q3 - Q1
+
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+outliers <- df %>% filter(los < lower_bound | los > upper_bound)
+
+cat(sprintf("Number of Outliers = %d\n", nrow(outliers)))
+
+
+# Further Illustration
+cat(sprintf("Q1 = %f, Q3 = %f, IQR = %f\n", Q1, Q3, IQR))
+cat(sprintf("Lower Bound = %f, Upper Bound = %f\n", lower_bound, upper_bound))
+cat(sprintf("Length of Stay Range: %f → %f\n", min(df$los), max(df$los)))
+
+#  2.3.2. Boxplot Method
+ggplot(df, aes(x = "", y = Length.of.Stay, color = Outlier)) +
+  geom_boxplot(fill = "lightgray") +
+  geom_jitter(size = 5, width = 0.2) +
+  scale_color_manual(values = c("Normal" = "black", "Outlier" = "red")) +
+  ggtitle("Boxplot of Length of Stay with Colored Outliers") +
+  xlab("") +
+  ylab("Length of Stay (Days)") +
+  theme(legend.title = element_blank())
+
+dev.off()
+
+# Convert Age to AgeGroup
+
+df <- df %>% mutate(
+  AgeGroup = cut(Age,
+                 breaks = c(0, 20, 40, 60, 80, 100),
+                 labels = c("<20", "20-40", "40-60", "60-80", "80+"))
+)
+
+# 2.4. Boxplot by Admission Type
+ggplot(df, aes(x = `Admission.Type`, y = Length.of.Stay)) +
+  geom_boxplot(fill = "#66c2a5") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.5. Boxplot by Admission Type and Gender
+ggplot(df, aes(x = `Admission.Type`, y = Length.of.Stay, fill = Gender)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type and Gender",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.6. Boxplot + Jitter points colored by Age
+ggplot(df, aes(x = `Admission.Type`, y = Length.of.Stay)) +
+  geom_boxplot(aes(fill = Gender), outlier.shape = NA) +
+  geom_jitter(aes(color = Age), position = position_jitterdodge(jitter.width = 0.25, dodge.width = 0.75), size = 2, alpha = 0.5) +
+  scale_color_viridis(option = "plasma", direction = -1) +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type and Gender (Colored by Age)",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.7. Faceted Boxplot by Gender and AgeGroup
+plot_df <- df %>% filter(!is.na(AgeGroup) & !is.na(Gender) & !is.na(Admission.Type) & !is.na(Length.of.Stay))
+
+ggplot(plot_df, aes(x = Admission.Type, y = Length.of.Stay, fill = AgeGroup)) +
+  geom_boxplot() +
+  facet_wrap(~Gender) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type, Age Group, and Gender",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 2.8. Boxplot by Admission Type and Age Group
+ggplot(df, aes(x = Admission.Type, y = Length.of.Stay, fill = AgeGroup)) +
+  geom_boxplot() +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Length of Stay by Admission Type and Age Group",
+       x = "Admission Type",
+       y = "Length of Stay (Days)")
+
+dev.off()
+
+# 3. Frequency Analysis of Categorical (Qualitative) Data
+table(df$Gender)
+table(df$Admission.Type)
+table(df$Insurance.Provider)
+table(df$Medication)
+table(df$Medical.Condition)
+table(df$Test.Results)
+table(df$Blood.Type)
+
+# 4. Test and Quantify relationships between Categorical variables
+
+# 4.1. Gender & Admission Type
+table1 <- table(df$Gender, df$Admission.Type)
+chi1 <- chisq.test(table1)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi1$statistic, chi1$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table1)$cramer))
+
+cat("Contingency Table:\n")
+print(table1)
+
+cat("\nExpected Counts:\n")
+print(round(chi1$expected, 2))
+
+barplot(prop.table(table1, 1), beside=FALSE, legend=TRUE, col=rainbow(ncol(table1)),
+        main="Admission Type by Gender", ylab="Proportion", xlab="Gender")
+
+dev.off()
+
+# 4.2. Age & Admission Type
+df$AgeGroup <- cut(df$Age, breaks = c(0, 20, 40, 60, 80, 100),
+                   labels = c("<20", "20-39", "40-59", "60-79", "80+"))
+
+table2 <- table(df$AgeGroup, df$Admission.Type)
+chi2 <- chisq.test(table2)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi2$statistic, chi2$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table2)$cramer))
+
+cat("Contingency Table:\n")
+print(table2)
+
+cat("\nExpected Counts:\n")
+print(round(chi2$expected, 2))
+
+barplot(prop.table(table2, 1), beside=FALSE, legend=TRUE, col=heat.colors(ncol(table2)),
+        main="Admission Type by Age Group", ylab="Proportion", xlab="Age Group")
+
+dev.off()
+
+# 4.3. Medical Condition & Admission Type
+table3 <- table(df$Medical.Condition, df$Admission.Type)
+chi3 <- chisq.test(table3)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi3$statistic, chi3$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table3)$cramer))
+
+cat("Contingency Table:\n")
+print(table3)
+
+cat("\nExpected Counts:\n")
+print(round(chi3$expected, 2))
+
+barplot(prop.table(table3, 1), beside=FALSE, legend=TRUE, col=topo.colors(ncol(table3)),
+        main="Admission Type by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+dev.off()
+
+# 4.4. Medical Condition & Insurance Provider
+table4 <- table(df$Medical.Condition, df$Insurance.Provider)
+chi4 <- chisq.test(table4)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi4$statistic, chi4$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table4)$cramer))
+
+cat("\nContingency Table:\n")
+print(table4)
+
+cat("\nExpected Counts:\n")
+print(round(chi4$expected, 2))
+
+barplot(prop.table(table4, 1), beside=FALSE, legend=TRUE, col=viridis::viridis(ncol(table4)),
+        main="Distribution of Insurance Provider by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+# 4.5. Medical Condition & Test Results
+table5 <- table(df$Medical.Condition, df$Test.Results)
+chi5 <- chisq.test(table5)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi5$statistic, chi5$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table5)$cramer))
+
+cat("\nContingency Table:\n")
+print(table5)
+
+cat("\nExpected Counts:\n")
+print(round(chi5$expected, 2))
+
+barplot(prop.table(table5, 1), beside=FALSE, legend=TRUE, col=RColorBrewer::brewer.pal(ncol(table5), "Blues"),
+        main="Distribution of Test Results by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+dev.off()
+
+# 4.6. Medical Condition & Medication
+table6 <- table(df$Medical.Condition, df$Medication)
+chi6 <- chisq.test(table6)
+
+cat(sprintf("Chi-square statistic = %.2f, p-value = %.4f\n", chi6$statistic, chi6$p.value))
+cat(sprintf("Cramér's V = %.2f\n", assocstats(table6)$cramer))
+
+cat("\nContingency Table:\n")
+print(table6)
+
+cat("\nExpected Counts:\n")
+print(round(chi6$expected, 2))
+
+barplot(prop.table(table6, 1), beside=FALSE, legend=TRUE, col=viridis::viridis(ncol(table6), option = "C"),
+        main="Distribution of Medication by Medical Condition", ylab="Proportion", xlab="Medical Condition", las=2)
+
+dev.off()
+
+# 5. Log-Linear Model for 3-Way Interaction
+# Age, Medical Condition, Admission Type
+
+# Step 1: Create Age Groups
+df$AgeGroup <- cut(df$Age,
+                   breaks = c(0, 20, 40, 60, 80, 100),
+                   labels = c("<20", "20-39", "40-59", "60-79", "80+"),
+                   right = FALSE)
+
+# Step 2: Create 3-way contingency table
+table3way <- df %>%
+  count(AgeGroup, Medical.Condition, Admission.Type) %>%
+  rename(Count = n)
+
+# Step 3: Fit log-linear model (Poisson regression)
+model <- glm(
+  Count ~ AgeGroup * Medical.Condition * Admission.Type,
+  data = table3way,
+  family = poisson()
+)
+
+# Step 4: Summary output
+summary(model)
+
+# 6. Cohort Analysis comparing cancer patients admitted in winter vs. summer
+
+# Step 1: Ensure date columns are in Date format
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+
+# Step 2: Create Season Column
+get_season <- function(date) {
+  month <- month(date)
+  if (month %in% c(12, 1, 2)) {
+    return("Winter")
+  } else if (month %in% c(6, 7, 8)) {
+    return("Summer")
+  } else {
+    return("Other")
+  }
+}
+
+df$Season <- sapply(df$Date.of.Admission, get_season)
+
+# Step 3: Filter cancer patients in Winter and Summer
+cancer_df <- df %>%
+  filter(tolower(Medical.Condition) == "cancer", Season %in% c("Winter", "Summer"))
+
+# Step 4: Calculate Length of Stay (in days)
+cancer_df <- cancer_df %>%
+  mutate(Length.of.Stay = as.numeric(Discharge.Date - Date.of.Admission))
+
+# Step 5: Split cohorts
+winter <- filter(cancer_df, Season == "Winter")
+summer <- filter(cancer_df, Season == "Summer")
+
+# Step 6: Summary Stats
+cat("\n=== Cohort Summary ===\n")
+cat("Winter cohort:\n")
+print(summary(dplyr::select(winter, Length.of.Stay, Billing.Amount)))
+
+cat("\nSummer cohort:\n")
+print(summary(dplyr::select(summer, Length.of.Stay, Billing.Amount)))
+
+# Step 7: Statistical Tests (Mann-Whitney U Test = Wilcoxon Rank-Sum Test in R)
+cat("\n=== Statistical Tests ===\n")
+
+# Length of Stay
+test1 <- wilcox.test(winter$Length.of.Stay, summer$Length.of.Stay, exact = FALSE)
+cat(sprintf("Length of Stay - Mann-Whitney U Test: W=%.2f, p=%.4f\n", test1$statistic, test1$p.value))
+
+# Billing Amount
+test2 <- wilcox.test(winter$Billing.Amount, summer$Billing.Amount, exact = FALSE)
+cat(sprintf("Billing Amount - Mann-Whitney U Test: W=%.2f, p=%.4f\n", test2$statistic, test2$p.value))
+
+# Step 8: Visualization
+ggplot(cancer_df, aes(x = Season, y = Length.of.Stay, fill = Season)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set2") +
+  ggtitle("Length of Stay: Cancer Patients (Winter vs Summer)") +
+  theme_minimal()
+
+dev.off()
+
+ggplot(cancer_df, aes(x = Season, y = Billing.Amount, fill = Season)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Set3") +
+  ggtitle("Billing Amount: Cancer Patients (Winter vs Summer)") +
+  theme_minimal()
+
+dev.off()
+
+#  7.1. Time Series Analysis for Length of Stay (LOS), Billing Amount among cancer patients across time
+
+# Step 1 & 2: Parse date columns & filter cancer patients
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+cancer_df <- df %>% filter(tolower(Medical.Condition) == "cancer")
+
+# Step 3: Calculate Length of Stay
+cancer_df <- cancer_df %>%
+  mutate(Length.of.Stay = as.numeric(Discharge.Date - Date.of.Admission))
+
+# Step 4: Create 'Month' column
+cancer_df$Month <- floor_date(cancer_df$Date.of.Admission, "month")
+
+# Step 5: Aggregate by Month
+monthly_ts <- cancer_df %>%
+  group_by(Month) %>%
+  summarise(
+    Length.of.Stay = mean(Length.of.Stay, na.rm = TRUE),
+    Billing.Amount = mean(Billing.Amount, na.rm = TRUE),
+    Patient.Count = n()
+  )
+
+# Step 6: Plot LOS and Billing Amount
+par(mfrow = c(1, 2))  # 2 plots side-by-side
+plot(monthly_ts$Month, monthly_ts$Length.of.Stay, type = "o", col = "blue",
+     main = "Average Length of Stay Over Time", xlab = "Month", ylab = "LOS (days)")
+grid()
+
+
+plot(monthly_ts$Month, monthly_ts$Billing.Amount, type = "o", col = "orange",
+     main = "Average Billing Amount Over Time", xlab = "Month", ylab = "Billing Amount")
+grid()
+par(mfrow = c(1,1))  # Reset
+
+dev.off()
+
+#  7.2. Time Series Analysis for Length of Stay (LOS), Billing Amount, Patients numbers among cancer patients across time
+
+# Step 6: ggplot version with 3 time series
+
+# Plot 1: LOS
+p1 <- ggplot(monthly_ts, aes(x = Month, y = Length.of.Stay)) +
+  geom_line(color = "steelblue") +
+  geom_point() +
+  labs(title = "Average Length of Stay Over Time", y = "LOS (days)", x = "") +
+  theme_minimal()
+
+# Plot 2: Billing Amount
+p2 <- ggplot(monthly_ts, aes(x = Month, y = Billing.Amount)) +
+  geom_line(color = "darkorange") +
+  geom_point() +
+  labs(title = "Average Billing Amount Over Time", y = "Billing Amount", x = "") +
+  theme_minimal()
+
+# Plot 3: Patient Count
+p3 <- ggplot(monthly_ts, aes(x = Month, y = Patient.Count)) +
+  geom_line(color = "forestgreen") +
+  geom_point() +
+  labs(title = "Monthly Number of Cancer Patients", y = "Patient Count", x = "Month") +
+  theme_minimal()
+
+# Combine all 3
+library(patchwork)
+(p1 / p2 / p3) + plot_layout(ncol = 1)
+
+dev.off()
+
+#  8.1. Mann–Whitney U Test (Number vs Two Categorical Groups)
+# Billing Amount vs Admission Types (First Two Types)
+
+top_two_types <- names(sort(table(df$Admission.Type), decreasing = TRUE))[1:2]
+filtered <- df %>% filter(Admission.Type %in% top_two_types)
+
+group1 <- filtered %>% filter(Admission.Type == top_two_types[1]) %>% pull(Billing.Amount)
+group2 <- filtered %>% filter(Admission.Type == top_two_types[2]) %>% pull(Billing.Amount)
+
+test1 <- wilcox.test(group1, group2, exact = FALSE)
+
+cat(sprintf("\n[Mann–Whitney] Billing Amount between %s & %s\n", top_two_types[1], top_two_types[2]))
+cat(sprintf("U = %.2f, p = %.4f\n", test1$statistic, test1$p.value))
+
+#  8.2. Kruskal-Wallis Test (Number vs more than 2 Categorical Groups)
+# Length of Stay LOS vs Medical Condition 
+
+df$Date.of.Admission <- as.Date(df$Date.of.Admission, format = "%m/%d/%Y")
+df$Discharge.Date <- as.Date(df$Discharge.Date, format = "%m/%d/%Y")
+
+df$LOS <- as.numeric(df$Discharge.Date - df$Date.of.Admission)
+
+valid_groups <- df %>%
+  group_by(Medical.Condition) %>%
+  filter(n() > 1) %>%
+  ungroup()
+
+test2 <- kruskal.test(LOS ~ Medical.Condition, data = valid_groups)
+
+cat("\n[Kruskal-Wallis] LOS \n")
+cat(sprintf("H = %.2f, p = %.4f\n", test2$statistic, test2$p.value))
+
+#  8.3. Spearman Correlation Test (Number vs Number)
+#  Age vs Billing Amount
+
+test3 <- cor.test(df$Age, df$Billing.Amount, method = "spearman")
+cat("\n[Spearman] with Billing Amount\n")
+cat(sprintf("rho = %.2f, p = %.4f\n", test3$estimate, test3$p.value))
+
+# LOS vs Billing Amount
+
+test4 <- cor.test(df$Age, df$LOS, method = "spearman")
+cat("\n[Spearman] with LOS\n")
+cat(sprintf("rho = %.2f, p = %.4f\n", test4$estimate, test4$p.value))
+
+#  8.4. Kolmogorov–Smirnov Test
+#  Admission Types vs LOS
+
+group1 <- filtered %>% filter(Admission.Type == top_two_types[1]) %>% pull(Length.of.Stay)
+group2 <- filtered %>% filter(Admission.Type == top_two_types[2]) %>% pull(Length.of.Stay)
+
+test5 <- ks.test(group1, group2)
+
+cat(sprintf("\n[KS Test] LOS  %s & %s\n", top_two_types[1], top_two_types[2]))
+cat(sprintf("KS = %.2f, p = %.4f\n", test5$statistic, test5$p.value))
+
+# 9.1. Boxplot: Billing Amount by Admission Type
+p1 <- ggplot(df, aes(x = Admission.Type, y = Billing.Amount)) +
+  geom_boxplot() +
+  labs(title = "Billing Amount by Admission Type", x = "Admission Type", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 9.2. Boxplot: LOS by Medical Condition
+p2 <- ggplot(df, aes(x = Medical.Condition, y = Length.of.Stay)) +
+  geom_boxplot() +
+  labs(title = "Length of Stay by Medical Condition", x = "Medical Condition", y = "LOS") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 9.3. KDE: Age distribution by Admission Type
+p3 <- ggplot(df, aes(x = Age, fill = Admission.Type, color = Admission.Type)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Age Distribution by Admission Type", x = "Age", y = "Density") +
+  theme_minimal()
+
+# Combine plots
+(p1 / p2 / p3) + plot_layout(guides = "collect")
+
+dev.off()
+
+#  10.1. Spearman Correlation Matrix (Numerical Variables)
+
+# Choose Numerical Variables ONLY
+num_vars <- df %>% dplyr::select(Age, Billing.Amount, Length.of.Stay)
+
+# Compute Spearman correlation
+corr <- cor(num_vars, method = "spearman", use = "complete.obs")
+
+# Heatmap
+ggcorrplot(corr, method = "circle", type = "lower", 
+           lab = TRUE, lab_size = 4, colors = c("red", "white", "blue"),
+           title = "Spearman Correlation Matrix") +
+  theme_minimal()
+
+dev.off()
+
+#  10.2. Pairplot
+ggpairs(num_vars, 
+        title = "Pairwise Comparisons of Age, Billing Amount, and LOS",
+        upper = list(continuous = wrap("cor", method = "spearman")),
+        lower = list(continuous = wrap("smooth", alpha = 0.5)),
+        diag = list(continuous = wrap("densityDiag"))) +
+  theme_minimal()
+
+dev.off()
+
+#  10.3. Violin Plot: Billing Amount by Medical Condition
+ggplot(df, aes(x = Medical.Condition, y = Billing.Amount)) +
+  geom_violin(fill = "skyblue", color = "black", trim = FALSE) +
+  stat_summary(fun = median, geom = "point", color = "red", size = 2) +
+  labs(title = "Billing Amount by Medical Condition", x = "Medical Condition", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
+
+#  11.1. Regression Analysis between Age & Billing Amount
+
+# Simple linear regression
+model1 <- lm(Billing.Amount ~ Age, data = df)
+summary(model1)
+
+# Regression Plot between Age & Billing Amount
+ggplot(df, aes(x = Age, y = Billing.Amount)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "red") +
+  labs(title = "Regression Line: Billing Amount vs Age",
+       x = "Age", y = "Billing Amount") +
+  theme_minimal()
+
+dev.off()
+
+# Residual Plot
+df$predicted <- predict(model1)
+df$residuals <- residuals(model1)
+
+ggplot(df, aes(x = predicted, y = residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, color = "red", method = "loess") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray") +
+  labs(title = "Residual Plot",
+       x = "Predicted Billing Amount", y = "Residuals") +
+  theme_minimal()
+
+dev.off()
+
+# 11.2. Multiple Regression Analysis 
+# Age, Billing Amount, LOS
+df_clean <- df %>% 
+  dplyr::select(Age, Length.of.Stay, Billing.Amount) %>%
+  mutate(across(everything(), as.numeric)) %>%
+  na.omit()
+
+# Fit the regression model
+model2 <- lm(Billing.Amount ~ Age + Length.of.Stay, data = df_clean)
+summary(model2)
+
+# Residuals and fitted values
+df_clean$Residuals <- residuals(model2)
+df_clean$Fitted <- fitted(model2)
+
+# Plot 1: Residual plot
+ggplot(df_clean, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, color = "red", method = "loess") +
+  labs(title = "Residual Plot",
+       x = "Fitted values", y = "Residuals") +
+  theme_minimal()
+
+dev.off()
+
+# Plot 2: Influence Plot (Cook's Distance vs Leverage)
+influencePlot(model2, main = "Influence Plot (Cook’s Distance vs Leverage)")
+
+# VIF Table
+vif_values <- vif(model2)
+vif_df <- data.frame(Variable = names(vif_values), VIF = vif_values)
+print(vif_df)
+
+dev.off()
+
+
+
+
+# STEP 5: Predictive Analysis, Modelling, Machine Learning
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx")
+df <- admission_data
+
+
+# 1. number of patients per medical condition in the next three years per month
+# Step 1: Convert admission date to Date format if needed
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+
+# Step 2: Create Year-Month column
+df <- df %>%
+  mutate(YearMonth = floor_date(`Date of Admission`, unit = "month"))
+
+# Step 3: Count patients per month per medical condition
+monthly_counts <- df %>%
+  group_by(YearMonth, `Medical Condition`) %>%
+  summarise(Patient_Count = n(), .groups = 'drop')
+
+# Step 4: Pivot to wide format for time series modeling
+ts_data <- pivot_wider(monthly_counts,
+                       names_from = `Medical Condition`,
+                       values_from = Patient_Count,
+                       values_fill = 0)
+
+# Step 5: Time series forecasting per condition
+# Create a list to hold forecasts
+forecasts <- list()
+forecast_horizon <- 36  # 3 years × 12 months
+
+# Extract time index
+ts_start <- c(year(min(ts_data$YearMonth)), month(min(ts_data$YearMonth)))
+ts_end   <- c(year(max(ts_data$YearMonth)), month(max(ts_data$YearMonth)))
+
+# Loop through each condition and forecast
+for (condition in colnames(ts_data)[-1]) {
+  y <- ts(ts_data[[condition]], start = ts_start, frequency = 12)
+  model <- ets(y)  # You can replace with auto.arima(y)
+  fcast <- forecast(model, h = forecast_horizon)
+  forecasts[[condition]] <- data.frame(
+    Date = seq(max(ts_data$YearMonth) %m+% months(1), by = "month", length.out = forecast_horizon),
+    Condition = condition,
+    Forecast = as.numeric(fcast$mean)
+  )
+}
+
+# Step 6: Combine all forecasts
+forecast_df <- bind_rows(forecasts)
+
+# Step 7: Plot forecast
+ggplot(forecast_df, aes(x = Date, y = Forecast, color = Condition)) +
+  geom_line(size = 1.2) +
+  labs(title = "Forecast: Monthly Patient Counts per Medical Condition (Next 3 Years)",
+       x = "Month", y = "Predicted Patient Count") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Comparing the results of different three predictive models 
+
+# Set random seed for reproducibility
+set.seed(42)
+
+# Generate synthetic monthly data for 4 years
+dates <- seq(as.Date("2020-01-01"), by = "month", length.out = 48)
+patients <- round(100 + 10 * sin(1:48 * 2 * pi / 12) + rnorm(48, 0, 5))
+df <- data.frame(Date = dates, Patients = patients)
+
+# Convert to time series object
+ts_data <- ts(df$Patients, start = c(2020, 1), frequency = 12)
+
+# 1. ETS Model
+ets_model <- ets(ts_data)
+ets_forecast <- forecast(ets_model, h = 36)  # Forecast next 36 months
+
+# 2. Manual ARIMA Model
+# ARIMA(p=1, d=1, q=1) with seasonal (P=1, D=1, Q=1, period=12)
+arima_model <- Arima(ts_data, order = c(1,1,1), seasonal = list(order = c(1,1,1), period = 12))
+arima_forecast <- forecast(arima_model, h = 36)
+
+# 3. Prophet Model
+df_prophet <- df %>% rename(ds = Date, y = Patients)
+prophet_model <- prophet(df_prophet, yearly.seasonality = TRUE)
+future <- make_future_dataframe(prophet_model, periods = 36, freq = "month")
+forecast_prophet <- predict(prophet_model, future)
+
+# Create full date range for historical + forecast period
+full_dates <- seq(as.Date("2020-01-01"), by = "month", length.out = 84)
+
+# Combine actuals and forecasts into a single dataframe
+df_plot <- data.frame(
+  Date = full_dates,
+  Actual = c(df$Patients, rep(NA, 36)),
+  ETS = c(rep(NA, 48), ets_forecast$mean),
+  ARIMA = c(rep(NA, 48), arima_forecast$mean),
+  Prophet = forecast_prophet$yhat
+)
+
+# Convert to long format for plotting
+df_long <- df_plot %>%
+  pivot_longer(cols = -Date, names_to = "Model", values_to = "Patients")
+
+# Plot the comparison of all models
+ggplot(df_long, aes(x = Date, y = Patients, color = Model)) +
+  geom_line(size = 1) +
+  theme_minimal() +
+  labs(title = "Forecast Comparison of Patient Counts (Monthly)",
+       y = "Number of Patients", x = "Date") +
+  scale_color_manual(values = c("black", "blue", "red", "green")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 2. Estimate total Daily Billing Amount for Male and Female Cancer Patients for the next 3 years
+
+df <- admission_data
+# Filter Cancer patients only and group by Gender and Date
+df_cancer <- df %>%
+  filter(`Medical Condition` == "Cancer") %>%
+  mutate(`Date of Admission` = as.Date(`Date of Admission`)) %>%
+  group_by(Gender, `Date of Admission`) %>%
+  summarise(Total_Billing = sum(`Billing Amount`, na.rm = TRUE), .groups = "drop")
+
+# Prepare data for Prophet for each gender
+df_male <- df_cancer %>% filter(Gender == "Male") %>%
+  rename(ds = `Date of Admission`, y = Total_Billing)
+df_female <- df_cancer %>% filter(Gender == "Female") %>%
+  rename(ds = `Date of Admission`, y = Total_Billing)
+
+# Create Prophet models
+model_male <- prophet(df_male, daily.seasonality = TRUE)
+model_female <- prophet(df_female, daily.seasonality = TRUE)
+
+# Create future dataframes (3 years = 1095 days)
+future_male <- make_future_dataframe(model_male, periods = 1095)
+future_female <- make_future_dataframe(model_female, periods = 1095)
+
+# Make predictions
+forecast_male <- predict(model_male, future_male)
+forecast_female <- predict(model_female, future_female)
+
+# Add Gender for plotting
+forecast_male$Gender <- "Male"
+forecast_female$Gender <- "Female"
+
+# Combine forecasts
+forecast_all <- bind_rows(
+  forecast_male %>% dplyr::select(ds, yhat, Gender),
+  forecast_female %>% dplyr::select(ds, yhat, Gender)
+)
+
+dev.off()
+
+# Plot
+ggplot(forecast_all, aes(x = ds, y = yhat, color = Gender)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Male" = "blue", "Female" = "red")) +
+  labs(title = "Forecast: Daily Billing Amounts for Cancer Patients (Next 3 Years)",
+       x = "Date", y = "Predicted Total Billing") +
+  theme_minimal()
+
+dev.off()
+
+#  3. Estimate the average LOS of cancer patients per month stratified by males and Females
+
+# Ensure date format
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+df$`Discharge Date` <- as.Date(df$`Discharge Date`)
+
+# Filter cancer patients
+df_cancer <- df %>% filter(tolower(`Medical Condition`) == "cancer")
+
+# Compute Length of Stay
+df_cancer <- df_cancer %>%
+  mutate(LOS = as.numeric(`Discharge Date` - `Date of Admission`))
+
+# Group by YearMonth and Gender
+df_cancer <- df_cancer %>%
+  mutate(YearMonth = floor_date(`Date of Admission`, "month"))
+
+monthly_avg_los <- df_cancer %>%
+  group_by(YearMonth, Gender) %>%
+  summarise(LOS = mean(LOS, na.rm = TRUE), .groups = 'drop')
+
+# Forecast per gender using Prophet
+forecasts <- list()
+for (gender in c("Male", "Female")) {
+  df_gender <- monthly_avg_los %>%
+    filter(Gender == gender) %>%
+    rename(ds = YearMonth, y = LOS)
+  
+  model <- prophet(df_gender, yearly.seasonality = TRUE)
+  future <- make_future_dataframe(model, periods = 36, freq = "month")
+  forecast <- predict(model, future)
+  
+  forecasts[[gender]] <- forecast %>%
+    dplyr::select(ds, yhat) %>%
+    rename(Predicted_LOS = yhat) %>%
+    mutate(Gender = gender)
+}
+
+# Combine and plot
+forecast_df <- bind_rows(forecasts)
+
+ggplot(forecast_df, aes(x = ds, y = Predicted_LOS, color = Gender)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("Male" = "blue", "Female" = "red")) +
+  labs(title = "Forecasted Monthly Average LOS for Cancer Patients by Gender",
+       x = "Date", y = "Average Length of Stay (days)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
+
+#  4. estimate the average length of stay (LOS) per month for cancer patients, stratified by age groups, and forecast it for the next 3 years.
+
+# Convert to Date
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+df$`Discharge Date` <- as.Date(df$`Discharge Date`)
+
+# Calculate LOS
+df$LOS <- as.numeric(df$`Discharge Date` - df$`Date of Admission`)
+
+# Filter for cancer patients
+df_cancer <- df %>% filter(tolower(`Medical Condition`) == "cancer")
+
+# Create Age Groups
+df_cancer <- df_cancer %>%
+  mutate(`Age Group` = cut(Age, breaks = c(0, 20, 40, 60, 80, Inf),
+                           labels = c("0-20", "21-40", "41-60", "61-80", "81+")))
+
+# Create Year-Month
+df_cancer <- df_cancer %>%
+  mutate(YearMonth = floor_date(`Date of Admission`, unit = "month"))
+
+# Monthly average LOS per age group
+monthly_avg_los <- df_cancer %>%
+  group_by(YearMonth, `Age Group`) %>%
+  summarise(Avg_LOS = mean(LOS, na.rm = TRUE), .groups = 'drop')
+
+# Forecast with Prophet for each age group
+forecast_list <- list()
+
+for (group in unique(monthly_avg_los$`Age Group`)) {
+  df_group <- monthly_avg_los %>%
+    filter(`Age Group` == group) %>%
+    dplyr::select(ds = YearMonth, y = Avg_LOS)
+  
+  model <- prophet(df_group)
+  future <- make_future_dataframe(model, periods = 36, freq = "month")
+  forecast <- predict(model, future)
+  forecast$`Age Group` <- group
+  forecast_list[[as.character(group)]] <- forecast[, c("ds", "yhat", "Age Group")]
+}
+
+# Combine forecasts
+forecast_df <- bind_rows(forecast_list)
+
+# Plot
+ggplot(forecast_df, aes(x = ds, y = yhat, color = `Age Group`)) +
+  geom_line(size = 1.2) +
+  labs(title = "Forecast of Average Length of Stay by Age Group (Next 3 Years)",
+       x = "Date", y = "Predicted LOS (Days)") +
+  theme_minimal() +
+  theme(legend.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
+
+# STEP 6: Prescriptive Analysis
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx")
+df <- admission_data
+
+#  🔧 Problem 1: Optimal Doctor Allocation per Month
+
+#  Goal: Assign the right number of doctors to minimize patient wait times and optimize patient-to-doctor ratio.
+
+# Group patients by month
+df$YearMonth <- floor_date(as.Date(df$`Date of Admission`), "month")
+monthly_counts <- df %>%
+  group_by(YearMonth) %>%
+  summarise(Patient_Count = n())
+
+# Assume ideal ratio: 15 patients per doctor
+monthly_counts <- monthly_counts %>%
+  mutate(Required_Doctors = ceiling(Patient_Count / 15))
+
+# View recommendations
+print(monthly_counts)
+
+
+#  🔧 Problem 2: Recommend Discharge Policies for Reducing Length of Stay
+
+#  Goal: Identify which hospitals or conditions have high LOS and recommend optimized discharge planning.
+
+
+# Ensure both dates are in Date format
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+df$`Discharge Date` <- as.Date(df$`Discharge Date`)
+
+# Create LOS (Length of Stay) in days
+df$LOS <- as.numeric(df$`Discharge Date` - df$`Date of Admission`)
+
+# Group by Hospital and Medical Condition and calculate average LOS
+avg_los <- df %>%
+  group_by(Hospital, `Medical Condition`) %>%
+  summarise(LOS = mean(LOS, na.rm = TRUE), .groups = 'drop')
+
+# Identify hospitals with high LOS (above 75th percentile)
+threshold <- quantile(avg_los$LOS, 0.75, na.rm = TRUE)
+avg_los <- avg_los %>%
+  mutate(High_LOS_Flag = LOS > threshold)
+
+# Show result
+print(avg_los)
+
+#  🔧 Problem 3: Optimize Cancer Ward Capacity
+
+#  Goal: Predict peak months and recommend minimum ward capacity to avoid overflow.
+
+# Cancer cases per month
+cancer_df <- df %>% filter(`Medical Condition` == "Cancer")
+cancer_df$YearMonth <- floor_date(as.Date(cancer_df$`Date of Admission`), "month")
+
+monthly_cancer <- cancer_df %>%
+  group_by(YearMonth) %>%
+  summarise(Cancer_Patients = n()) %>%
+  mutate(Recommended_Capacity = ceiling(Cancer_Patients * 1.2))
+
+# View recommended capacity
+print(monthly_cancer)
