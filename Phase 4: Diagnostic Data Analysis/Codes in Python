@@ -1,0 +1,1074 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+# STEP 4: Diagnostic Analysis 
+
+# 1. Checking Distributions
+# Graphically (histogram, boxplot, Q-Q plot)
+# numerically by statisical tests (Shapiro-Wilk Test, Kolmogorov-Smirnov Test, Anderson-Darling Test)
+
+# 1.1. Age Distribution
+
+age_data = df['Age'].dropna()
+
+# 1.1.1. Histogram
+
+plt.figure(figsize=(10,5))
+sns.histplot(age_data, kde=True, bins=30)
+plt.title("Age Distribution")
+plt.xlabel("Age")
+plt.ylabel("Frequency")
+plt.show()
+
+# 1.1.2. Boxplot
+
+sns.boxplot(x=age_data)
+plt.title("Boxplot of Age")
+plt.show()
+
+# 1.1.3. Q-Q Plot
+
+from scipy import stats
+stats.probplot(age_data, dist="norm", plot=plt)
+plt.title("Q-Q Plot for Age")
+plt.show()
+
+# 1.1.4.  Kolmogorov-Smirnov Test
+
+ks_test = stats.kstest(age_data, 'norm', args=(age_data.mean(), age_data.std()))
+print("\nKolmogorov–Smirnov Test:")
+print(f"Statistic = {ks_test.statistic}, p-value = {ks_test.pvalue}")
+
+# 1.1.5. Anderson-Darling Test
+
+ad_test = stats.anderson(age_data, dist='norm')
+print("\nAnderson-Darling Test:")
+print(f"Statistic = {ad_test.statistic}")
+for i in range(len(ad_test.critical_values)):
+    print(f"Significance Level {ad_test.significance_level[i]}: Critical Value = {ad_test.critical_values[i]}")
+
+# Age is not normally distributed
+# Attempts to make corrections of Age
+
+# Set Coordinates
+ 
+fig, axes = plt.subplots(3, 2, figsize=(12, 14))
+
+
+# 1) Log Transformation
+log_age = np.log(age_data)
+
+sns.histplot(log_age, kde=True, ax=axes[0, 0], bins=30)
+axes[0, 0].set_title("Histogram - Log Transformed Age")
+
+stats.probplot(log_age, dist="norm", plot=axes[0, 1])
+axes[0, 1].set_title("Q-Q Plot - Log Transformed Age")
+
+# 2) Square Root Transformation
+sqrt_age = np.sqrt(age_data)
+
+sns.histplot(sqrt_age, kde=True, ax=axes[1, 0], bins=30)
+axes[1, 0].set_title("Histogram - Square Root Transformed Age")
+
+stats.probplot(sqrt_age, dist="norm", plot=axes[1, 1])
+axes[1, 1].set_title("Q-Q Plot - Square Root Transformed Age")
+
+
+# 3) Box-Cox Transformation 
+boxcox_age, fitted_lambda = stats.boxcox(age_data)
+
+sns.histplot(boxcox_age, kde=True, ax=axes[2, 0], bins=30)
+axes[2, 0].set_title(f"Histogram - Box-Cox (λ={fitted_lambda:.2f})")
+
+stats.probplot(boxcox_age, dist="norm", plot=axes[2, 1])
+axes[2, 1].set_title("Q-Q Plot - Box-Cox Transformed Age")
+
+plt.tight_layout()
+plt.show()
+
+# 1.2. Billing Amount
+
+bill_data = df['Billing Amount'].dropna()
+
+# 1.2.1. Histogram
+
+plt.figure(figsize=(10,5))
+sns.histplot(bill_data, kde=True, bins=30)
+plt.title("Bill Distribution")
+plt.xlabel("Billing Amount")
+plt.ylabel("Frequency")
+plt.show()
+
+# 1.2.2. Boxplot
+
+sns.boxplot(x=bill_data)
+plt.title("Boxplot of Bill")
+plt.show()
+
+# 1.2.3. Q-Q Plot
+
+stats.probplot(bill_data, dist="norm", plot=plt)
+plt.title("Q-Q Plot for Bill")
+plt.show()
+
+# 1.2.4.  Kolmogorov-Smirnov Test
+
+ks_test = stats.kstest(bill_data, 'norm', args=(bill_data.mean(), bill_data.std()))
+print("\nKolmogorov–Smirnov Test:")
+print(f"Statistic = {ks_test.statistic}, p-value = {ks_test.pvalue}")
+
+# 1.2.5. Anderson-Darling Test
+
+ad_test = stats.anderson(bill_data, dist='norm')
+print("\nAnderson-Darling Test:")
+print(f"Statistic = {ad_test.statistic}")
+for i in range(len(ad_test.critical_values)):
+    print(f"Significance Level {ad_test.significance_level[i]}: Critical Value = {ad_test.critical_values[i]}")
+
+# Bill is not normally distributed
+# Attempts to make corrections of Bill
+
+# Set Coordinates
+ 
+fig, axes = plt.subplots(2, 2, figsize=(12, 14))
+
+
+# 1) Log Transformation
+log_bill = np.log(bill_data)
+
+sns.histplot(log_bill, kde=True, ax=axes[0, 0], bins=30)
+axes[0, 0].set_title("Histogram - Log Transformed Bill")
+
+stats.probplot(log_bill, dist="norm", plot=axes[0, 1])
+axes[0, 1].set_title("Q-Q Plot - Log Transformed Bill")
+
+# 2) Square Root Transformation
+sqrt_bill = np.sqrt(bill_data)
+
+sns.histplot(sqrt_bill, kde=True, ax=axes[1, 0], bins=30)
+axes[1, 0].set_title("Histogram - Square Root Transformed Bill")
+
+stats.probplot(sqrt_bill, dist="norm", plot=axes[1, 1])
+axes[1, 1].set_title("Q-Q Plot - Square Root Transformed Bill")
+
+
+# 1.3. Length of Stay
+
+# make sure that both date of admission and discharge date columns are datetime type
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Calculate Length of Stay
+df['Length of Stay'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+# Print the head values
+print(df[['Date of Admission', 'Discharge Date', 'Length of Stay']].head())
+
+los = df['Length of Stay'].dropna()
+
+# 1.3.1 Histogram
+plt.figure(figsize=(10, 4))
+sns.histplot(los, kde=True, bins=29)
+plt.title("Distribution of Length of Stay")
+plt.xlabel("Days")
+plt.ylabel("Frequency")
+plt.show()
+
+# 1.3.2. Boxplot
+plt.figure(figsize=(8, 5))
+sns.boxplot(x=df['Length of Stay'])
+plt.title("Box Plot of Length of Stay")
+plt.xlabel("Days")
+plt.show()
+
+# 1.3.3. Q-Q plot
+stats.probplot(los, dist="norm", plot=plt)
+plt.title("Q-Q Plot for Length of Stay")
+plt.show()
+
+# 1.3.4.  Kolmogorov-Smirnov Test
+ks_test = stats.kstest(los, 'norm', args=(los.mean(), los.std()))
+print("\nKolmogorov–Smirnov Test:")
+print(f"Statistic = {ks_test.statistic}, p-value = {ks_test.pvalue}")
+
+# 1.3.5.  Anderson-Darling test
+ad_test = stats.anderson(los, dist='norm')
+print(f"Anderson-Darling: statistic={ad_test.statistic:.4f}")
+for sl, cv in zip(ad_test.significance_level, ad_test.critical_values):
+    print(f"  Significance Level {sl}%: Critical Value = {cv}")
+
+# Length of Stay is not normally distributed
+# ANOVA, t-test, paired t-test, pearson r can NOT be used (Data not Normally Distributed)
+# Non-parametric Tests should be used (Kruskal-Wallis H, Mann-Whitney U, Wilcoxon signed-rank test, Spearman correlation)
+
+
+#  2. Finding Outliers: Using interquartile range and boxplot
+
+#  2.1. Age Outliers
+#  2.1.1. InterQuartile Range Method
+Q1 = df['Age'].quantile(0.25)
+Q3 = df['Age'].quantile(0.75)
+IQR = Q3 - Q1
+
+# Range of Allowed Values
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers = df[(df['Age'] < lower_bound) | (df['Age'] > upper_bound)]
+
+print(f"Number of Outliers = {len(outliers)}")
+print(outliers[['Age']])
+
+# Further Illusteration
+print(f"Q1 = {Q1}, Q3 = {Q3}, IQR = {IQR}")
+print(f"Lower Bound = {lower_bound}, Upper Bound = {upper_bound}")
+print(f"Age range: {df['Age'].min()} → {df['Age'].max()}")
+
+#  2.1.2. Boxplot Method with different colored points for outliers
+# Construct New Dataframe for outliers values
+age_df = pd.DataFrame({'Age': age_data})
+age_df['Outlier'] = age_df['Age'].apply(lambda x: 'Outlier' if (x < lower_bound or x > upper_bound) else 'Normal')
+
+# Construct boxplot
+plt.figure(figsize=(10, 4))
+sns.boxplot(x='Age', data=age_df, color='lightgray')
+sns.stripplot(x='Age', data=age_df, hue='Outlier', palette={'Normal': 'blue', 'Outlier': 'red'}, jitter=0.2, size=3, dodge=False)
+
+plt.title("Boxplot of Age with Outliers Highlighted")
+plt.xlabel("Age")
+plt.legend(title='Point Type')
+plt.show()
+	
+#  2.2. Bill Outliers
+#  2.2.1. InterQuartile Range Method
+Q1 = df['Billing Amount'].quantile(0.25)
+Q3 = df['Billing Amount'].quantile(0.75)
+IQR = Q3 - Q1
+
+# Range of Allowed Values
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers = df[(df['Billing Amount'] < lower_bound) | (df['Billing Amount'] > upper_bound)]
+
+print(f"Number of Outliers = {len(outliers)}")
+print(outliers[['Billing Amount']])
+
+# Further Illusteration
+print(f"Q1 = {Q1}, Q3 = {Q3}, IQR = {IQR}")
+print(f"Lower Bound = {lower_bound}, Upper Bound = {upper_bound}")
+print(f"Billing Amount Range: {df['Billing Amount'].min()} → {df['Billing Amount'].max()}")
+
+#  2.2.2. Boxplot Method
+# Construct New Dataframe for outliers values
+bill_df = pd.DataFrame({'Billing Amount': bill_data})
+bill_df['Outlier'] = bill_df['Billing Amount'].apply(lambda x: 'Outlier' if (x < lower_bound or x > upper_bound) else 'Normal')
+
+# Construct boxplot
+plt.figure(figsize=(10, 4))
+sns.boxplot(x='Billing Amount', data=bill_df, color='lightgray')
+sns.stripplot(x='Billing Amount', data=bill_df, hue='Outlier', palette={'Normal': 'blue', 'Outlier': 'red'}, jitter=0.2, size=3, dodge=False)
+
+plt.title("Boxplot of Billing Amount with Outliers Highlighted")
+plt.xlabel("Billing Amount")
+plt.legend(title='Point Type')
+plt.show()
+
+#  2.3. Length of Stay Outliers
+#  2.3.1. InterQuartile Range Method
+df['los'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+Q1 = df['los'].quantile(0.25)
+Q3 = df['los'].quantile(0.75)
+IQR = Q3 - Q1
+
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+outliers = df[(df['los'] < lower_bound) | (df['los'] > upper_bound)]
+
+print(f"Number of Outliers = {len(outliers)}")
+print(outliers[['los']])
+
+
+# Further Illusteration
+print(f"Q1 = {Q1}, Q3 = {Q3}, IQR = {IQR}")
+print(f"Lower Bound = {lower_bound}, Upper Bound = {upper_bound}")
+print(f"Length of Stay Range: {df['los'].min()} → {df['los'].max()}")
+
+#  2.3.2. Boxplot Method
+
+df['Outlier'] = df['los'].apply(lambda x: 'Outlier' if (x < lower_bound or x > upper_bound) else 'Normal')
+plt.figure(figsize=(10, 5))
+sns.boxplot(x='los', data=df, color='lightgray')
+
+sns.stripplot(x='los', data=df, hue='Outlier', palette={'Normal': 'black', 'Outlier': 'red'}, jitter=0.2, size=5)
+
+plt.title("Boxplot of Length of Stay with Colored Outliers")
+plt.xlabel("Length of Stay (Days)")
+plt.legend(title='Point Type')
+plt.grid(True)
+plt.show()
+
+# 2.4. Boxplot with Outliers of Length of stay by Admission Type
+plt.figure(figsize=(12, 5))
+sns.boxplot(x='Admission Type', y='los', data=df, palette='Set2')
+plt.title("Length of Stay by Admission Type")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.show()
+
+# 2.5. Boxplot with Outliers of Length of stay by Admission Type and Gender
+plt.figure(figsize=(12, 6))
+sns.boxplot(x='Admission Type', y='los', hue='Gender', data=df, palette='pastel')
+plt.title("Length of Stay by Admission Type and Gender")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.legend(title='Gender')
+plt.grid(True)
+plt.show()
+
+# 2.6. Boxplot, Stripplot with Outliers of Length of stay by Admission Type and Gender (Colored by Age)
+plt.figure(figsize=(14, 6))
+
+# Boxplot by admission type and gender
+sns.boxplot(x='Admission Type', y='los', hue='Gender', data=df, palette='pastel')
+
+# Stripplot  (Age)
+sns.stripplot(
+    x='Admission Type',
+    y='los',
+    data=df,
+    hue='Age',  # color by Age
+    dodge=True,
+    palette='coolwarm',  # color stratification by age
+    size=5,
+    jitter=0.25,
+    alpha=0.5,
+    legend=False
+)
+
+plt.title("Length of Stay by Admission Type and Gender (Colored by Age)")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# 2.7. Boxplot with Outliers of Length of stay by Admission Type and Gender (Colored by Age)
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100], labels=['<20', '20-40', '40-60', '60-80', '80+'])
+plot_df = df.dropna(subset=['AgeGroup', 'Admission Type', 'los', 'Gender'])
+
+# Facetgrid per gender
+g = sns.catplot(
+    data=plot_df,
+    x='Admission Type',
+    y='los',
+    hue='AgeGroup',
+    col='Gender',  
+    kind='box',
+    palette='coolwarm',
+    height=5,
+    aspect=1.3
+)
+
+g.set_titles("Gender: {col_name}")
+g.set_axis_labels("Admission Type", "Length of Stay (Days)")
+g.set_xticklabels(rotation=45)
+g.add_legend(title="Age Group")
+
+plt.subplots_adjust(top=0.85)
+g.fig.suptitle("Length of Stay by Admission Type, Age Group, and Gender")
+plt.show()
+
+# 2.8.Boxplot with Outliers of Length of stay by Admission Type and Age
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100], labels=['<20', '20-40', '40-60', '60-80', '80+'])
+
+plt.figure(figsize=(14, 6))
+sns.boxplot(x='Admission Type', y='los', hue='AgeGroup', data=df, palette='coolwarm')
+
+plt.title("Length of Stay by Admission Type and Age Group")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.legend(title='Age Group')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# 3. Frequency Analysis of Categorical (Qualitative) Data
+df['Gender'].value_counts()
+df['Admission Type'].value_counts()
+df['Insurance Provider'].value_counts()
+df['Medication'].value_counts()
+df['Medical Condition'].value_counts()
+df['Test Results'].value_counts()
+df['Blood Type'].value_counts()
+
+# 4. Test and Quantify relationships between Caegorical variables
+
+# 4.1. Gender & Admission Type
+table = pd.crosstab(df['Gender'], df['Admission Type'])
+
+# Chi-Square Test
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#Cramer's Test
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    r, k = confusion_matrix.shape
+    return np.sqrt(chi2 / (n * (min(k, r) - 1)))
+
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+# Contingency Table
+contingency = pd.crosstab(df['Gender'], df['Admission Type'])
+print("Contingency Table:")
+print(contingency)
+
+chi2, p, dof, expected = chi2_contingency(contingency)
+expected_df = pd.DataFrame(expected, index=contingency.index, columns=contingency.columns)
+print("\nExpected Counts:")
+print(expected_df)
+
+contingency.plot(kind='bar', stacked=True, colormap='Set2')
+plt.title("Admission Type by Gender")
+plt.ylabel("Number of Patients")
+plt.xlabel("Gender")
+plt.xticks(rotation=0)
+plt.legend(title="Admission Type")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+# 4.2. Age & Admission Type
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100],
+                        labels=['<20', '20-39', '40-59', '60-79', '80+'])
+
+# Create contingency table
+table = pd.crosstab(df['AgeGroup'], df['Admission Type'])
+
+# Chi-Square Test
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+# Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    r, k = confusion_matrix.shape
+    return np.sqrt(chi2 / (n * (min(k, r) - 1)))
+
+# Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+# Print contingency table
+print("Contingency Table:")
+print(table)
+
+# Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df)
+
+# Plot
+table.plot(kind='bar', stacked=True, colormap='Set3')
+plt.title("Admission Type by Age Group")
+plt.ylabel("Number of Patients")
+plt.xlabel("Age Group")
+plt.xticks(rotation=0)
+plt.legend(title="Admission Type")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+# 4.3. Medical Condition & Admission Type
+# Create contingency table
+table = pd.crosstab(df['Medical Condition'], df['Admission Type'])
+
+# Chi-Square Test
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+# Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    r, k = confusion_matrix.shape
+    return np.sqrt(chi2 / (n * (min(k, r) - 1)))
+
+# Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+# Print contingency table
+print("Contingency Table:")
+print(table)
+
+# Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df)
+
+# Plot
+table.plot(kind='bar', stacked=True, colormap='Pastel2')
+plt.title("Admission Type by Medical Condition")
+plt.ylabel("Number of Patients")
+plt.xlabel("Medical Condition")
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Admission Type")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+# 4.4. Medical Condition & Insurance Provider 
+
+table = pd.crosstab(df['Medical Condition'], df['Insurance Provider'])
+
+#  Chi-Square Test of Independence
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#  Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2_corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    r_corr = r - ((r-1)**2)/(n-1)
+    k_corr = k - ((k-1)**2)/(n-1)
+    # The formula for Cramer's V is the square root of the chi-squared statistic 
+    # divided by the sample size and the minimum of (rows-1) or (cols-1)
+    return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1)))
+
+
+#  Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+#  Print contingency table
+print("\nContingency Table:")
+print(table)
+
+#  Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df.round(2)) # Rounded for cleaner output
+
+#  Plot the results
+table.plot(kind='bar', stacked=True, figsize=(12, 7), colormap='viridis')
+plt.title("Distribution of Insurance Provider by Medical Condition", fontsize=16)
+plt.ylabel("Number of Patients", fontsize=12)
+plt.xlabel("Medical Condition", fontsize=12)
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Insurance Provider", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout() # Adjusts plot to ensure everything fits without overlapping
+plt.show()
+
+# 4.5. Medical Condition & Test Results
+
+table = pd.crosstab(df['Medical Condition'], df['Test Results'])
+
+#  Chi-Square Test of Independence
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#  Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2_corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    r_corr = r - ((r-1)**2)/(n-1)
+    k_corr = k - ((k-1)**2)/(n-1)
+    # The formula for Cramer's V is the square root of the chi-squared statistic 
+    # divided by the sample size and the minimum of (rows-1) or (cols-1)
+    return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1)))
+
+
+#  Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+#  Print contingency table
+print("\nContingency Table:")
+print(table)
+
+#  Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df.round(2)) # Rounded for cleaner output
+
+#  Plot the results
+table.plot(kind='bar', stacked=True, figsize=(12, 7), colormap='YlGnBu')
+plt.title("Distribution of Test Results by Medical Condition", fontsize=16)
+plt.ylabel("Number of Patients", fontsize=12)
+plt.xlabel("Medical Condition", fontsize=12)
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Test Results", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout() # Adjusts plot to ensure everything fits without overlapping
+plt.show()
+
+# 4.6. Medical Condition & Medication
+
+table = pd.crosstab(df['Medical Condition'], df['Medication'])
+
+#  Chi-Square Test of Independence
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#  Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2_corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    r_corr = r - ((r-1)**2)/(n-1)
+    k_corr = k - ((k-1)**2)/(n-1)
+    # The formula for Cramer's V is the square root of the chi-squared statistic 
+    # divided by the sample size and the minimum of (rows-1) or (cols-1)
+    return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1)))
+
+
+#  Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+#  Print contingency table
+print("\nContingency Table:")
+print(table)
+
+#  Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df.round(2)) # Rounded for cleaner output
+
+#  Plot the results
+table.plot(kind='bar', stacked=True, figsize=(12, 7), colormap='cividis')
+plt.title("Distribution of Medication by Medical Condition", fontsize=16)
+plt.ylabel("Number of Patients", fontsize=12)
+plt.xlabel("Medical Condition", fontsize=12)
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Medication", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout() # Adjusts plot to ensure everything fits without overlapping
+plt.show()
+
+#  5. Log-Linear Model for 3-Way Interaction
+# Age, Medical Condition, Admission Type
+
+# Step 1: Create Age Groups
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100],
+                        labels=['<20', '20-39', '40-59', '60-79', '80+'])
+
+# Step 2: Create 3-way contingency table
+table = pd.crosstab(
+    [df['AgeGroup'], df['Medical Condition']],
+    df['Admission Type']
+).stack().reset_index().rename(columns={0: 'Count'})
+
+# Step 3: Fit log-linear model (Poisson regression)
+model = smf.glm(
+    formula='Count ~ AgeGroup * Q("Medical Condition") * Q("Admission Type")',
+    data=table,
+    family=sm.families.Poisson()
+).fit()
+
+# Step 4: Summary output
+print(model.summary())
+
+#  6. Cohort Analysis comparing cancer patients admitted in winter vs. summer on:
+#  Length of Stay, Billing Amount
+# Step 1: Ensure date columns are in datetime format
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Step 2: Create Season Column
+def get_season(date):
+    month = date.month
+    if month in [12, 1, 2]:
+        return 'Winter'
+    elif month in [6, 7, 8]:
+        return 'Summer'
+    else:
+        return 'Other'  # Spring/Fall (optional to include)
+
+df['Season'] = df['Date of Admission'].apply(get_season)
+
+# Step 3: Filter cancer patients in Winter and Summer
+cancer_df = df[(df['Medical Condition'].str.lower() == 'cancer') & df['Season'].isin(['Winter', 'Summer'])]
+
+# Step 4: Calculate Length of Stay (in days)
+cancer_df.loc[:, 'Length of Stay'] = (cancer_df['Discharge Date'] - cancer_df['Date of Admission']).dt.days
+
+# Step 5: Split cohorts
+winter = cancer_df[cancer_df['Season'] == 'Winter']
+summer = cancer_df[cancer_df['Season'] == 'Summer']
+
+# Step 6: Summary Stats
+print("\n=== Cohort Summary ===")
+print("Winter cohort:")
+print(winter[['Length of Stay', 'Billing Amount']].describe())
+print("\nSummer cohort:")
+print(summer[['Length of Stay', 'Billing Amount']].describe())
+
+# Step 7: Statistical Tests
+# Use t-test or Mann-Whitney depending on distribution
+
+print("\n=== Statistical Tests ===")
+# Length of Stay
+stat, p1 = mannwhitneyu(winter['Length of Stay'], summer['Length of Stay'], alternative='two-sided')
+print(f"Length of Stay - Mann-Whitney U Test: U={stat:.2f}, p={p1:.4f}")
+
+# Billing Amount
+stat, p2 = mannwhitneyu(winter['Billing Amount'], summer['Billing Amount'], alternative='two-sided')
+print(f"Billing Amount - Mann-Whitney U Test: U={stat:.2f}, p={p2:.4f}")
+
+# Step 8: Visualization
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+sns.boxplot(data=cancer_df, x='Season', y='Length of Stay', palette='Set2')
+plt.title('Length of Stay: Cancer Patients (Winter vs Summer)')
+
+plt.subplot(1, 2, 2)
+sns.boxplot(data=cancer_df, x='Season', y='Billing Amount', palette='Set3')
+plt.title('Billing Amount: Cancer Patients (Winter vs Summer)')
+
+plt.tight_layout()
+plt.show()
+
+#  7.1. Time Series Analysis for Length of Stay (LOS), Billing Amount among cancer patients across time
+
+# Step 1: Parse date columns
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Step 2: Filter cancer patients only
+cancer_df = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Step 3: Calculate Length of Stay (LOS)
+cancer_df['Length of Stay'] = (cancer_df['Discharge Date'] - cancer_df['Date of Admission']).dt.days
+
+# Step 4: Create 'Month' column for time grouping
+cancer_df['Month'] = cancer_df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Step 5: Aggregate by Month
+monthly_ts = cancer_df.groupby('Month').agg({
+    'Length of Stay': 'mean',
+    'Billing Amount': 'mean',
+    'Date of Admission': 'count'  # optional: number of cancer patients per month
+}).rename(columns={'Date of Admission': 'Patient Count'})
+
+# Step 6: Plot the time series
+plt.figure(figsize=(14, 6))
+
+# Length of Stay
+plt.subplot(1, 2, 1)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Length of Stay', marker='o')
+plt.title('Average Length of Stay (LOS) Over Time - Cancer Patients')
+plt.xlabel('Month')
+plt.ylabel('LOS (days)')
+plt.xticks(rotation=45)
+plt.grid(True)
+
+# Billing Amount
+plt.subplot(1, 2, 2)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Billing Amount', marker='o', color='orange')
+plt.title('Average Billing Amount Over Time - Cancer Patients')
+plt.xlabel('Month')
+plt.ylabel('Billing Amount')
+plt.xticks(rotation=45)
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+#  7.2. Time Series Analysis for Length of Stay (LOS), Billing Amount, Patients numbers among cancer patients across time
+
+# Step 1: Parse date columns
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Step 2: Filter cancer patients only
+cancer_df = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Step 3: Calculate Length of Stay (LOS)
+cancer_df['Length of Stay'] = (cancer_df['Discharge Date'] - cancer_df['Date of Admission']).dt.days
+
+# Step 4: Create 'Month' column
+cancer_df['Month'] = cancer_df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Step 5: Aggregate by Month
+monthly_ts = cancer_df.groupby('Month').agg({
+    'Length of Stay': 'mean',
+    'Billing Amount': 'mean',
+    'Date of Admission': 'count'  # number of patients
+}).rename(columns={'Date of Admission': 'Patient Count'})
+
+# Step 6: Plot the 3 time series
+plt.figure(figsize=(16, 9))
+
+# Plot 1: LOS
+plt.subplot(3, 1, 1)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Length of Stay', marker='o')
+plt.title('Average Length of Stay (LOS) Over Time - Cancer Patients')
+plt.xlabel('')
+plt.ylabel('LOS (days)')
+plt.grid(True)
+
+# Plot 2: Billing Amount
+plt.subplot(3, 1, 2)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Billing Amount', marker='o', color='orange')
+plt.title('Average Billing Amount Over Time - Cancer Patients')
+plt.xlabel('')
+plt.ylabel('Billing Amount')
+plt.grid(True)
+
+# Plot 3: Patient Count
+plt.subplot(3, 1, 3)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Patient Count', marker='o', color='green')
+plt.title('Monthly Number of Cancer Patients Admitted')
+plt.xlabel('Month')
+plt.ylabel('Patient Count')
+plt.xticks(rotation=45)
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+#  8.1. Mann–Whitney U Test (Number vs Two Categorical Groups)
+# Billing Amount vs Admission Types (First Two Types)
+
+top_two_types = df['Admission Type'].value_counts().index[:2]
+filtered = df[df['Admission Type'].isin(top_two_types)]
+
+group1 = filtered[filtered['Admission Type'] == top_two_types[0]]['Billing Amount']
+group2 = filtered[filtered['Admission Type'] == top_two_types[1]]['Billing Amount']
+
+stat, p = mannwhitneyu(group1, group2, alternative='two-sided')
+print(f"\n[Mann–Whitney] Billing Amount between {top_two_types[0]} & {top_two_types[1]}")
+print(f"U = {stat:.2f}, p = {p:.4f}")
+
+
+#  8.2. Kruskal-Wallis Test (Number vs more than 2 Categorical Groups)
+# Length of Stay LOS vs Medical Condition 
+
+from scipy.stats import kruskal
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+df['LOS'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+groups = [group['LOS'].dropna() for name, group in df.groupby('Medical Condition') if len(group) > 1]
+stat, p = kruskal(*groups)
+print(f"\n[Kruskal-Wallis] LOS ")
+print(f"H = {stat:.2f}, p = {p:.4f}")
+
+#  8.3. Spearman Correlation Test (Number vs Number)
+#  Age vs Billing Amount
+
+from scipy.stats import spearmanr
+rho, p = spearmanr(df['Age'], df['Billing Amount'])
+print(f"\n[Spearman] with Billing Amount")
+print(f"rho = {rho:.2f}, p = {p:.4f}")
+
+# LOS vs Billing Amount
+rho, p = spearmanr(df['Age'], df['LOS'])
+print(f"\n[Spearman] with LOS")
+print(f"rho = {rho:.2f}, p = {p:.4f}")
+
+#  8.4. Kolmogorov–Smirnov Test
+#  Admission Types vs LOS
+
+from scipy.stats import ks_2samp
+
+group1 = filtered.loc[filtered['Admission Type'] == top_two_types[0], 'Length of Stay']
+group2 = filtered.loc[filtered['Admission Type'] == top_two_types[1], 'Length of Stay']
+
+stat, p = ks_2samp(group1, group2)
+print(f"\n[KS Test] LOS  {top_two_types[0]} & {top_two_types[1]}")
+print(f"KS = {stat:.2f}, p = {p:.4f}")
+
+# 9.1. Boxplot: Billing Amount by Admission Type
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='Admission Type', y='Billing Amount', data=df)
+plt.title('Billing Amount by Admission Type')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# 9.2. Boxplot: LOS by Medical Condition
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='Medical Condition', y='LOS', data=df)
+plt.title('Length of Stay by Medical Condition')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# 9.3. KDE: Age distribution by Admission Type
+plt.figure(figsize=(8, 5))
+for label in df['Admission Type'].unique():
+    subset = df[df['Admission Type'] == label]
+    sns.kdeplot(subset['Age'], label=label, fill=True)
+plt.title('Age Distribution by Admission Type')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+#  10. Matrix of Correlations and Pairwise Comparisons
+#  10.1.  Spearman Correlation Matrix (Numerical Variables)
+
+# Choose Numerical Variables ONLY
+num_vars = df[['Age', 'Billing Amount', 'LOS']]
+
+# Spearman correlation
+corr = num_vars.corr(method='spearman')
+
+# Heatmap
+plt.figure(figsize=(6, 5))
+sns.heatmap(corr, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
+plt.title('Spearman Correlation Matrix')
+plt.tight_layout()
+plt.show()
+
+#  10.2. Pairplot
+sns.pairplot(num_vars, kind='scatter', plot_kws={'alpha':0.5})
+plt.suptitle("Pairwise Comparisons of Age, Billing Amount, and LOS", y=1.02)
+plt.tight_layout()
+plt.show()
+
+#  10.3. Violin Plot: Billing Amount by Medical Condition
+plt.figure(figsize=(10, 6))
+sns.violinplot(x='Medical Condition', y='Billing Amount', data=df, inner='quartile')
+plt.title('Billing Amount by Medical Condition')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+#  11. Regression Analysis
+#  11.1. Regression Analysis between Age & Billing Amount
+
+X = df['Age']
+y = df['Billing Amount']
+X_const = sm.add_constant(X)
+model = sm.OLS(y, X_const).fit()
+print(model.summary())
+
+# Regression Plot between Age & Billing Amount
+plt.figure(figsize=(8, 6))
+sns.regplot(x='Age', y='Billing Amount', data=df, line_kws={'color': 'red'})
+plt.title('Regression Line: Billing Amount vs Age')
+plt.xlabel('Age')
+plt.ylabel('Billing Amount')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Residual Plot
+X = sm.add_constant(df['Age'])
+model = sm.OLS(df['Billing Amount'], X).fit()
+preds = model.predict(X)
+residuals = df['Billing Amount'] - preds
+plt.figure(figsize=(8, 6))
+sns.residplot(x=preds, y=residuals, lowess=True, line_kws={'color': 'red'})
+plt.axhline(0, color='gray', linestyle='--')
+plt.title('Residual Plot')
+plt.xlabel('Predicted Billing Amount')
+plt.ylabel('Residuals')
+plt.tight_layout()
+plt.show()
+
+# 11.2. Multiple Regression Analysis 
+# Age, Billing Amount, LOS
+df_clean = df[['Age', 'LOS', 'Billing Amount']].copy()
+
+# Drop rows with missing or non-numeric values
+df_clean = df_clean.apply(pd.to_numeric, errors='coerce').dropna()
+
+# Define predictors and outcome
+X = df_clean[['Age', 'LOS']]
+y = df_clean['Billing Amount']
+
+# Add constant for intercept
+import statsmodels.api as sm
+X_const = sm.add_constant(X)
+
+# Fit the regression model
+model = sm.OLS(y, X_const).fit()
+
+# Residuals
+residuals = model.resid
+fitted = model.fittedvalues
+
+# Plot 1: Residual plot
+plt.figure(figsize=(6, 4))
+sns.residplot(x=fitted, y=residuals, lowess=True, line_kws={'color': 'red'})
+plt.xlabel("Fitted values")
+plt.ylabel("Residuals")
+plt.title("Residual Plot")
+plt.tight_layout()
+plt.show()
+
+# Plot 2: Influence Plot (Cook's Distance vs Leverage)
+from statsmodels.graphics.regressionplots import influence_plot
+fig, ax = plt.subplots(figsize=(8, 6))
+influence_plot(model, ax=ax)
+plt.title("Influence Plot (Cook’s Distance vs Leverage)")
+plt.tight_layout()
+plt.show()
+
+# VIF Table
+X_vif = X_const.copy()
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_vif.columns
+vif_data["VIF"] = [variance_inflation_factor(X_vif.values, i) for i in range(X_vif.shape[1])]
+
+model_summary = model.summary()
+
+vif_data, model_summary.tables[1]
