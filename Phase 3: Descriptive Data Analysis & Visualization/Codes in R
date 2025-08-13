@@ -1,0 +1,590 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gapminder")
+install.packages("ggthemes")
+install.packages("forcats")
+install.packages("plotly")
+install.packages("ggtext")
+install.packages("viridis")
+install.packages("RColorBrewer")
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gapminder)
+library(ggthemes)
+library(forcats)
+library(plotly)
+library(ggtext)
+library(viridis)
+library(RColorBrewer)
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/patients.xlsx")
+df <- admission_data
+# STEP 3: Analysis & Insights
+
+# Finding top 10 Doctor who treated most patients & Explore the correlation with total bill
+# Finding top 10 Doctor who made highest bills & Explore the correlation with No. of patients treated
+
+top_doctors_by_patients <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    total_Bill = sum(`Billing Amount`, na.rm = TRUE)
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated)) %>%
+  slice_head(n = 10)
+top_doctors_by_patients
+
+top_doctors_by_bill <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    total_Bill = sum(`Billing Amount`, na.rm = TRUE)
+  ) %>%
+  arrange(desc(total_Bill)) %>%
+  head(10)
+top_doctors_by_bill
+
+cor_test_result <- cor.test(
+  top_doctors_by_patients$Number_of_Patients_Treated,
+  top_doctors_by_patients$total_Bill
+)
+cor_test_result
+
+ggplot(top_doctors_by_patients, aes(x = reorder(paste(Doctor_First_Name, Doctor_Last_Name), -Number_of_Patients_Treated), y = Number_of_Patients_Treated)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Top 10 Doctors by Number of Patients Treated", x = "Doctor", y = "Patients Treated") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(top_doctors_by_bill, aes(x = reorder(paste(Doctor_First_Name, Doctor_Last_Name), -total_Bill), y = total_Bill)) +
+  geom_col(fill = "darkgreen") +
+  labs(title = "Top 10 Doctors by Total Billing Amount", x = "Doctor", y = "Total Bill") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(top_doctors_by_patients, aes(x = Number_of_Patients_Treated, y = total_Bill)) +
+  geom_point(color = "purple", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Correlation Between Number of Patients and Total Bill", x = "Patients Treated", y = "Total Bill") +
+  theme_minimal()
+
+# Designing a NEW Table for Complex Analysis, Insights, and Predictions
+analysis_table <- analysis_table %>%
+  mutate(
+    Patient_First_Name = Patient_First_Name,
+    Patient_Last_Name = Patient_Last_Name,
+    Age = Age, 
+    Gender = Gender, 
+    Blood_Type = `Blood Type`, 
+    Medical_Condition = `Medical Condition`, 
+    Date_of_Admission = `Date of Admission`,  
+    Doctor_First_Name = Doctor_First_Name, 
+    Doctor_Last_Name = Doctor_Last_Name,
+    Hospital = Hospital, 
+    Insurance_Provider = `Insurance Provider`,
+    Billing_Amount = round(`Billing Amount`, 2), 
+    Room_Number = `Room Number`,
+    Admission_Type = `Admission Type`, 
+    Discharge_Date = `Discharge Date`, 
+    Medication = Medication, 
+    Test_Results = `Test Results`,
+    
+    # Extract Admission date features
+    Admission_Year = year(`Date of Admission`),
+    Admission_Month = month(`Date of Admission`),
+    Admission_Week = isoweek(`Date of Admission`),
+    Admission_Day = day(`Date of Admission`),
+    Admission_WeekDay_Number = wday(`Date of Admission`, label = FALSE),
+    Admission_WeekDay_Name = wday(`Date of Admission`, label = TRUE, abbr = FALSE),
+    
+    # Extract Discharge date features
+    Discharge_Year = year(`Discharge Date`),
+    Discharge_Month = month(`Discharge Date`),
+    Discharge_Week = isoweek(`Discharge Date`),
+    Discharge_Day = day(`Discharge Date`),
+    Discharge_WeekDay_Number = wday(`Discharge Date`, label = FALSE),
+    Discharge_WeekDay_Name = wday(`Discharge Date`, label = TRUE, abbr = FALSE),
+    
+    # Length of stay
+    Length_of_Stay_in_Days = as.integer(difftime(`Discharge Date`, `Date of Admission`, units = "days")),
+    Length_of_Stay_in_Months = interval(`Date of Admission`, `Discharge Date`) %/% months(1),
+    
+    
+    # Gender binary columns
+    Male = if_else(Gender == "Male", 1, 0),
+    Female = if_else(Gender == "Female", 1, 0),
+    
+    # Medical Conditions
+    Arthritis = if_else(`Medical Condition` == "Arthritis", 1, 0),
+    Asthma = if_else(`Medical Condition` == "Asthma", 1, 0),
+    Cancer = if_else(`Medical Condition` == "Cancer", 1, 0),
+    Diabetes = if_else(`Medical Condition` == "Diabetes", 1, 0),
+    Hypertension = if_else(`Medical Condition` == "Hypertension", 1, 0),
+    Obesity = if_else(`Medical Condition` == "Obesity", 1, 0),
+    
+    # Age ranges
+    Age_Range = case_when(
+      Age < 18 ~ "BELOW 18",
+      Age >= 18 & Age < 30 ~ "BETWEEN 18 & 30",
+      Age >= 30 & Age < 45 ~ "BETWEEN 30 & 45",
+      Age >= 45 & Age < 60 ~ "BETWEEN 45 & 60",
+      Age >= 60 ~ "Above 60"
+    ),
+    Below_18 = if_else(Age < 18, 1, 0),
+    Between_18_30 = if_else(Age >= 18 & Age < 30, 1, 0),
+    Between_30_45 = if_else(Age >= 30 & Age < 45, 1, 0),
+    Between_45_60 = if_else(Age >= 45 & Age < 60, 1, 0),
+    Above_60 = if_else(Age >= 60, 1, 0),
+    
+    # Length of Stay Categories
+    Length_of_Stay_Category = case_when(
+      Length_of_Stay_in_Days < 3 ~ "Below 3 Days",
+      Length_of_Stay_in_Days >= 3 & Length_of_Stay_in_Days < 7 ~ "Between 3 & 7 Days",
+      Length_of_Stay_in_Days >= 7 & Length_of_Stay_in_Days < 15 ~ "Between 7 & 15 Days",
+      Length_of_Stay_in_Days >= 15 ~ "Above 15 Days"
+    ),
+    Below_3_Days = if_else(Length_of_Stay_in_Days < 3, 1, 0),
+    Between_3_7_Days = if_else(Length_of_Stay_in_Days >= 3 & Length_of_Stay_in_Days < 7, 1, 0),
+    Between_7_15_Days = if_else(Length_of_Stay_in_Days >= 7 & Length_of_Stay_in_Days < 15, 1, 0),
+    Above_15_Days = if_else(Length_of_Stay_in_Days >= 15, 1, 0),
+    
+    # Insurance Providers
+    MedHealth = if_else(`Insurance Provider` == "MedHealth", 1, 0),
+    SecureLife = if_else(`Insurance Provider` == "SecureLife", 1, 0),
+    CarePlus = if_else(`Insurance Provider` == "CarePlus", 1, 0),
+    LifeShield = if_else(`Insurance Provider` == "LifeShield", 1, 0),
+    HealthFirst = if_else(`Insurance Provider` == "HealthFirst", 1, 0),
+    
+    # Medication columns
+    Amoxicillin = if_else(`Medication` == "Amoxicillin", 1, 0),
+    Azithromycin = if_else(`Medication` == "Azithromycin", 1, 0),
+    Ibuprofen = if_else(`Medication` == "Ibuprofen", 1, 0),
+    Lisinopril = if_else(`Medication` == "Lisinopril", 1, 0),
+    Metformin = if_else(`Medication` == "Metformin", 1, 0),
+    Omeprazole = if_else(`Medication` == "Omeprazole", 1, 0),
+    Simvastatin = if_else(`Medication` == "Simvastatin", 1, 0),
+    
+    # Blood Type columns
+    A_Positive = if_else(`Blood Type` == "A+", 1, 0),
+    B_Positive = if_else(`Blood Type` == "B+", 1, 0),
+    AB_Positive = if_else(`Blood Type` == "AB+", 1, 0),
+    O_Positive = if_else(`Blood Type` == "O+", 1, 0),
+    A_Negative = if_else(`Blood Type` == "A-", 1, 0),
+    B_Negative = if_else(`Blood Type` == "B-", 1, 0),
+    AB_Negative = if_else(`Blood Type` == "AB-", 1, 0),
+    O_Negative = if_else(`Blood Type` == "O-", 1, 0),
+    
+    # Billing range category
+    Billing_Range = case_when(
+      `Billing Amount` < 100 ~ "Below 100$",
+      `Billing Amount` >= 100 & `Billing Amount` < 1000 ~ "Between 100 & 1000$",
+      `Billing Amount` >= 1000 & `Billing Amount` < 5000 ~ "Between 1000 & 5000$",
+      `Billing Amount` >= 5000 & `Billing Amount` < 10000 ~ "Between 5000 & 10000$",
+      `Billing Amount` >= 10000 & `Billing Amount` < 25000 ~ "Between 10000 & 25000$",
+      `Billing Amount` >= 25000 & `Billing Amount` < 50000 ~ "Between 25000 & 50000$",
+      `Billing Amount` > 50000 ~ "Above 50000$"
+    ),
+    
+    # Billing range dummy variables
+    Below_100 = if_else(`Billing Amount` < 100, 1, 0),
+    Between_100_1000 = if_else(`Billing Amount` >= 100 & `Billing Amount` < 1000, 1, 0),
+    Between_1000_5000 = if_else(`Billing Amount` >= 1000 & `Billing Amount` < 5000, 1, 0),
+    Between_5000_10000 = if_else(`Billing Amount` >= 5000 & `Billing Amount` < 10000, 1, 0),
+    Between_10000_25000 = if_else(`Billing Amount` >= 10000 & `Billing Amount` < 25000, 1, 0),
+    Between_25000_50000 = if_else(`Billing Amount` >= 25000 & `Billing Amount` < 50000, 1, 0),
+    Above_50000 = if_else(`Billing Amount` > 50000, 1, 0),
+    
+    # Day of Admission (string format)
+    Day_of_Admission = weekdays(`Date of Admission`),
+    
+    # Dummy columns for each weekday
+    Monday = if_else(weekdays(`Date of Admission`) == "Monday", 1, 0),
+    Tuesday = if_else(weekdays(`Date of Admission`) == "Tuesday", 1, 0),
+    Wednesday = if_else(weekdays(`Date of Admission`) == "Wednesday", 1, 0),
+    Thursday = if_else(weekdays(`Date of Admission`) == "Thursday", 1, 0),
+    Friday = if_else(weekdays(`Date of Admission`) == "Friday", 1, 0),
+    Saturday = if_else(weekdays(`Date of Admission`) == "Saturday", 1, 0),
+    Sunday = if_else(weekdays(`Date of Admission`) == "Sunday", 1, 0)
+  )
+
+library(dplyr)
+
+# Function to calculate percentages
+calculate_percentage <- function(data, column_name) {
+  data %>%
+    group_by(across(all_of(column_name))) %>%
+    summarise(Total_Patients = n(), .groups = "drop") %>%
+    mutate(Percentage = round((Total_Patients / sum(Total_Patients)) * 100, 2)) %>%
+    arrange(desc(Percentage))
+}
+
+# Blood Type Percentages
+blood_type_percent <- calculate_percentage(analysis_table, "Blood Type")
+
+# Gender Percentages
+gender_percent <- calculate_percentage(analysis_table, "Gender")
+
+# Medical Condition Percentages
+medical_condition_percent <- calculate_percentage(analysis_table, "Medical Condition")
+
+# Insurance Provider Percentages
+insurance_provider_percent <- calculate_percentage(analysis_table, "Insurance Provider")
+
+# Admission Type Percentages
+admission_type_percent <- calculate_percentage(analysis_table, "Admission Type")
+
+# Medication Percentages
+medication_percent <- calculate_percentage(analysis_table, "Medication")
+
+# View Percentages
+print(blood_type_percent)
+print(gender_percent)
+print(medical_condition_percent)
+print(insurance_provider_percent)
+print(admission_type_percent)
+print(medication_percent)
+
+# Most Billed Doctor Based on AVG, MAX, SUM, and Number of patients for billed amount
+top_doctors_all <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 0),
+    Total_Billing_Amount = round(sum(`Billing Amount`, na.rm = TRUE), 0),
+    Maximum_Billing_Amount = round(max(`Billing Amount`, na.rm = TRUE), 0),
+    Number_of_Patients = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(top_doctors_all)
+
+# Most Billed Docter Based on AVG, MAX, SUM, and Number of patients for billed amount in last 3 month
+
+max_date <- max(analysis_table$`Date of Admission`, na.rm = TRUE)
+date_threshold <- max_date %m-% months(3)
+
+top_doctors_3months <- analysis_table %>%
+  filter(`Date of Admission` >= date_threshold) %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 0),
+    Total_Billing_Amount = round(sum(`Billing Amount`, na.rm = TRUE), 0),
+    Maximum_Billing_Amount = round(max(`Billing Amount`, na.rm = TRUE), 0),
+    Number_of_Patients = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(top_doctors_3months)
+
+# Doctors Who Treated the Most Patients
+
+most_patients_doctors <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    Average_Billing_Amount = mean(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated), desc(Average_Billing_Amount)) %>%
+  slice_head(n = 10)
+
+print(most_patients_doctors)
+
+# Doctors Who Treated the Most Patients in the Last 3 Months
+
+max_date <- max(analysis_table$`Date of Admission`, na.rm = TRUE)
+date_threshold <- max_date %m-% months(3)
+
+most_recent_doctors <- analysis_table %>%
+  filter(`Date of Admission` >= date_threshold) %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    Average_Billing_Amount = mean(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated), desc(Average_Billing_Amount)) %>%
+  slice_head(n = 10)
+
+print(most_recent_doctors)
+
+# Hospitals That Treated the Most Patients
+
+most_patients_hospitals <- analysis_table %>%
+  group_by(Hospital) %>%
+  summarise(
+    Number_of_Patients_Treated = n(),
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 2),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Number_of_Patients_Treated), desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(most_patients_hospitals)
+
+# Most Billed Hospitals
+
+most_billed_hospitals <- analysis_table %>%
+  group_by(Hospital) %>%
+  summarise(
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 0),
+    Total_Billing_Amount = round(sum(`Billing Amount`, na.rm = TRUE), 0),
+    Maximum_Billing_Amount = round(max(`Billing Amount`, na.rm = TRUE), 0),
+    Number_of_Patients = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Average_Billing_Amount)) %>%
+  head(10)
+
+print(most_billed_hospitals)
+
+# Number of Doctors who Treated more than one patient
+
+num_doctors_gt1_patient <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(Number_of_Patients = n(), .groups = "drop") %>%
+  filter(Number_of_Patients > 1) %>%
+  summarise(Count = n())
+
+print(num_doctors_gt1_patient)
+
+# Percent of Doctors that treated more than 1 patients
+
+# Step 1: Count number of patients per doctor
+doctor_counts <- analysis_table %>%
+  group_by(Doctor_First_Name, Doctor_Last_Name) %>%
+  summarise(Number_of_Patients = n(), .groups = "drop")
+
+# Step 2: Categorize doctors into two groups
+more_than_one <- doctor_counts %>%
+  filter(Number_of_Patients > 1) %>%
+  nrow()
+
+equal_one <- doctor_counts %>%
+  filter(Number_of_Patients == 1) %>%
+  nrow()
+
+# Step 3: Calculate percentage
+total <- more_than_one + equal_one
+
+result <- data.frame(
+  Sum_more_than_1 = more_than_one,
+  Sum_equal_1 = equal_one,
+  Percentage = round((more_than_one / total) * 100, 2)
+)
+
+print(result)
+
+# Billing Based on Month & Year to find trends
+billing_trends <- analysis_table %>%
+  mutate(
+    Admission_Year = year(`Date of Admission`),
+    Admission_Month = month(`Date of Admission`)
+  ) %>%
+  group_by(Admission_Year, Admission_Month) %>%
+  summarise(
+    Total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    Average_Bill = mean(`Billing Amount`, na.rm = TRUE),
+    Maximum_Bill = max(`Billing Amount`, na.rm = TRUE),
+    Minimum_Bill = min(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Bill))
+
+print(billing_trends)
+
+# Plotting the previous Findings
+
+ggplot(billing_trends, aes(x = Admission_Date)) +
+  geom_line(aes(y = Total_Bill), color = "blue3", linewidth = 1) +  # use linewidth now, not size
+  geom_point(aes(y = Total_Bill), color = "red") +
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "3 months") +
+  labs(
+    title = "Total Billing Amount Trend by Month and Year",
+    x = "Admission Date (Year-Month)",
+    y = "Total Billing Amount"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Billing based on Month (aggregated across years)
+billing_by_month <- analysis_table %>%
+  mutate(Admission_Month = month(`Date of Admission`)) %>%
+  group_by(Admission_Month) %>%
+  summarise(
+    Total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    Average_Bill = mean(`Billing Amount`, na.rm = TRUE),
+    Maximum_Bill = max(`Billing Amount`, na.rm = TRUE),
+    Minimum_Bill = min(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Bill))
+
+print(billing_by_month)
+
+# Billing based on Year
+billing_by_year <- analysis_table %>%
+  mutate(Admission_Year = year(`Date of Admission`)) %>%
+  group_by(Admission_Year) %>%
+  summarise(
+    Total_Bill = sum(`Billing Amount`, na.rm = TRUE),
+    Average_Bill = mean(`Billing Amount`, na.rm = TRUE),
+    Maximum_Bill = max(`Billing Amount`, na.rm = TRUE),
+    Minimum_Bill = min(`Billing Amount`, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Total_Bill))
+
+print(billing_by_year)
+
+# Number of patients Based on Month & Year to find trends
+
+# Prepare dataset with Year-Month and Year extracted
+df <- analysis_table %>%
+  mutate(
+    Year_Month = format(`Date of Admission`, "%Y-%m"),
+    Admission_Year = year(`Date of Admission`)
+  )
+
+# Count patients per Year-Month & Medical Condition
+patient_counts <- df %>%
+  group_by(Year_Month, Admission_Year, `Medical Condition`) %>%
+  summarise(Patients_Per_Condition = n(), .groups = "drop")
+
+# Total patients per year per medical condition
+yearly_total <- df %>%
+  group_by(Admission_Year, `Medical Condition`) %>%
+  summarise(Total_Patients_In_Year = n(), .groups = "drop")
+
+# Join counts with totals
+joined <- patient_counts %>%
+  inner_join(yearly_total, by = c("Admission_Year", "Medical Condition"))
+
+# Rank months per medical condition by Patients_Per_Condition (descending)
+ranked <- joined %>%
+  group_by(`Medical Condition`) %>%
+  arrange(desc(Patients_Per_Condition)) %>%
+  mutate(Month_Rank = row_number()) %>%
+  ungroup()
+
+# Filter to top 3 months only
+top_months <- ranked %>%
+  filter(Month_Rank <= 3) %>%
+  mutate(
+    Percent = round(Patients_Per_Condition * 100 / Total_Patients_In_Year, 2)
+  )
+
+# Pivot wider so each Medical Condition has Top 3 months in separate columns
+result <- top_months %>%
+  select(`Medical Condition`, Month_Rank, Year_Month, Patients_Per_Condition, Percent) %>%
+  pivot_wider(
+    names_from = Month_Rank,
+    values_from = c(Year_Month, Patients_Per_Condition, Percent),
+    names_glue = "{.value}{Month_Rank}"
+  ) %>%
+  arrange(`Medical Condition`)
+
+print(result)
+
+#### Diagnostic Analysis 
+
+1. CHECK DISTRIBUTIONS
+
+# Age Distribution
+ggplot(analysis_table, aes(x = Age)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "white") +
+  labs(title = "Age Distribution", x = "Age", y = "Frequency") +
+  theme_minimal()
+
+# Billing Amount Distribution
+ggplot(analysis_table, aes(x = Billing_Amount)) +
+  geom_histogram(binwidth = 1000, fill = "darkgreen", color = "white") +
+  labs(title = "Billing Amount Distribution", x = "Billing Amount", y = "Frequency") +
+  theme_minimal()
+
+# Length of Stay Distribution
+ggplot(analysis_table, aes(x = Length_of_Stay_in_Days)) +
+  geom_histogram(binwidth = 1, fill = "purple", color = "white") +
+  labs(title = "Length of Stay (Days) Distribution", x = "Length of Stay (Days)", y = "Frequency") +
+  theme_minimal()
+
+2. OUTLIERS DETECTION
+
+# Outliers in Billing Amount
+ggplot(analysis_table, aes(y = Billing_Amount)) +
+  geom_boxplot(fill = "salmon") +
+  labs(title = "Outliers in Billing Amount", y = "Billing Amount") +
+  theme_minimal()
+
+# Outliers in Age
+ggplot(analysis_table, aes(y = Age)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Outliers in Age", y = "Age") +
+  theme_minimal()
+
+# Outliers in Length of Stay
+ggplot(analysis_table, aes(y = Length_of_Stay_in_Days)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "Outliers in Length of Stay", y = "Length of Stay (Days)") +
+  theme_minimal()
+
+3. Relationship Checks (Scatterplots & Correlation)
+
+# Stay Duration vs Billing Amount
+ggplot(analysis_table, aes(x = Length_of_Stay_in_Days, y = Billing_Amount)) +
+  geom_point(color = "blue", alpha = 0.5) +
+  geom_smooth(method = "lm", color = "black", se = FALSE) +
+  labs(title = "Length of Stay vs Billing Amount", x = "Length of Stay (Days)", y = "Billing Amount") +
+  theme_minimal()
+
+# Age vs Length of Stay
+ggplot(analysis_table, aes(x = Age, y = Length_of_Stay_in_Days)) +
+  geom_point(color = "red", alpha = 0.5) +
+  geom_smooth(method = "lm", color = "black", se = FALSE) +
+  labs(title = "Age vs Length of Stay", x = "Age", y = "Length of Stay (Days)") +
+  theme_minimal()
+
+# Billing Amount by Medical Condition
+ggplot(analysis_table, aes(x = Medical_Condition, y = Billing_Amount)) +
+  geom_boxplot(fill = "orange") +
+  labs(title = "Billing Amount by Medical Condition", x = "Medical Condition", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+4. Group Comparisons (Barplots / Boxplots)
+
+# Billing Amount by Gender
+ggplot(analysis_table, aes(x = Gender, y = Billing_Amount)) +
+  geom_boxplot(fill = "lightcoral") +
+  labs(title = "Billing Amount by Gender", x = "Gender", y = "Billing Amount") +
+  theme_minimal()
+
+# Billing Amount by Insurance Provider
+ggplot(analysis_table, aes(x = Insurance_Provider, y = Billing_Amount)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = "Billing Amount by Insurance Provider", x = "Insurance Provider", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Billing Amount by Hospital
+ggplot(analysis_table, aes(x = Hospital, y = Billing_Amount)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "Billing Amount by Hospital", x = "Hospital", y = "Billing Amount") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
