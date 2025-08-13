@@ -1,0 +1,90 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+# STEP 6: Prescriptive Analysis
+
+#  🔧 Problem 1: Optimal Doctor Allocation per Month
+
+#  Goal: Assign the right number of doctors to minimize patient wait times and optimize patient-to-doctor ratio.
+
+# Convert 'Date of Admission' to datetime
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'], errors='coerce')
+
+# Group by Year-Month and count the number of patients
+df['YearMonth'] = df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+monthly_patients = df.groupby('YearMonth').size().reset_index(name='Patient_Count')
+
+# Prescriptive: Assume ideal ratio is 15 patients per doctor
+monthly_patients['Required_Doctors'] = (monthly_patients['Patient_Count'] / 15).apply(np.ceil)
+
+# Show result
+print(monthly_patients)
+
+#  🔧 Problem 2: Recommend Discharge Policies for Reducing Length of Stay
+
+#  Goal: Identify which hospitals or conditions have high LOS and recommend optimized discharge planning.
+
+
+# Ensure both dates are datetime
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'], errors='coerce')
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'], errors='coerce')
+
+# Create LOS (Length of Stay) in days
+df['LOS'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+# Now group by hospital and medical condition
+avg_los = df.groupby(['Hospital', 'Medical Condition'])['LOS'].mean().reset_index()
+
+# Identify hospitals with high LOS (above 75th percentile)
+threshold = avg_los['LOS'].quantile(0.75)
+avg_los['High_LOS_Flag'] = avg_los['LOS'] > threshold
+
+# Show result
+print(avg_los)
+
+#  🔧 Problem 3: Optimize Cancer Ward Capacity
+
+#  Goal: Predict peak months and recommend minimum ward capacity to avoid overflow.
+
+# Filter cancer patients and group by month
+cancer_df = df[df['Medical Condition'] == 'Cancer']
+cancer_df['YearMonth'] = cancer_df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+monthly_cancer = cancer_df.groupby('YearMonth').size().reset_index(name='Cancer_Patients')
+
+# Recommend 20% buffer
+monthly_cancer['Recommended_Capacity'] = (monthly_cancer['Cancer_Patients'] * 1.2).apply(np.ceil)
+
+# Prescriptive Output
+print(monthly_cancer)
+
