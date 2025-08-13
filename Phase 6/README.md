@@ -55,7 +55,3 @@ Using patient admission and discharge data, we identify **optimal resource alloc
 - Output: Month-by-month **recommended ward capacity**.
 
 ---
-
-## 📂 Deliverables
-Folder:  
-
