@@ -1,1 +1,178 @@
+-- STEP 1: Data Exploration 
 
+-- Understanding Data, Exploring Columns, Values, and Data Types
+SELECT TOP 10
+    *
+FROM
+    [HospitalData].[dbo].[admission];
+
+-- Exploring different forms of gender used in the Dataset
+SELECT DISTINCT
+    [Gender]
+FROM 
+    [HospitalData].[dbo].[admission];
+
+-- Exploring Ages: Max, Min, and Average values
+SELECT 
+    MAX([Age]) AS [Maximum_Admission_Age], 
+    MIN([Age]) AS [Minimum_Admission_Age],
+    ROUND(AVG([Age]), 0) AS [Average_Admission_Age]
+FROM
+    [HospitalData].[dbo].[admission];
+
+-- Finding the Median Age
+WITH Ranking AS 
+    ( 
+        SELECT 
+            [Age],
+            ROW_NUMBER() OVER (ORDER BY [Age]) AS [Rank_of_Age],
+            COUNT(*) OVER () AS [Total_Number_of_Records]
+        FROM
+            [HospitalData].[dbo].[admission]
+    ),
+Position AS 
+    (
+        SELECT 
+            CASE 
+                WHEN [Total_Number_of_Records] % 2 = 0
+                THEN [Total_Number_of_Records] / 2
+                WHEN [Total_Number_of_Records] % 2 = 1
+                THEN ([Total_Number_of_Records] + 1) / 2
+            END AS [Position_of_Median_Value]
+        FROM 
+            Ranking
+    ),
+Median_Calculation AS
+    (
+        SELECT
+            CASE 
+                -- If the position is odd, select the age at that position
+                WHEN [Position_of_Median_Value] % 2 = 1
+                THEN (SELECT [Age] 
+                      FROM Ranking
+                      WHERE [Rank_of_Age] = [Position_of_Median_Value])
+
+                -- If the position is even, calculate the average of two middle ages
+                WHEN [Position_of_Median_Value] % 2 = 0 
+                THEN 
+                    (SELECT AVG([Age]) 
+                     FROM 
+                         (SELECT [Age] 
+                          FROM Ranking 
+                          WHERE [Rank_of_Age] IN ([Position_of_Median_Value], [Position_of_Median_Value] + 1)) AS Median_Ages)
+            END AS [Median_Age]
+        FROM 
+            Position
+    )
+
+-- Return the median age
+SELECT DISTINCT
+    [Median_Age]
+FROM 
+    Median_Calculation;
+-- Exploring unique insurance providers in dataset
+SELECT DISTINCT
+	[Insurance Provider]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring unique blood type in dataset
+SELECT DISTINCT
+	[Blood Type]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring unique medical conditions in dataset
+SELECT DISTINCT
+	[Medical Condition]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring unique admission types in dataset
+SELECT DISTINCT
+	[Admission Type]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring unique test results in dataset
+SELECT DISTINCT
+	[Test Results]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring unique medications in dataset
+SELECT DISTINCT
+	[Medication]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Finding the number of different doctors in dataset
+SELECT 
+	COUNT(DISTINCT [Doctor]) AS [Number_of_Doctors]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Finding the number of different hospitals in dataset
+SELECT 
+	COUNT(DISTINCT [Hospital]) AS [Number_of_Hospitals]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring discarge dates in dataset
+SELECT
+	MAX([Discharge Date]) AS [Maximum_Discharge_Date],
+	MIN([Discharge Date]) AS [Minimum_Discharge_Date],
+	DATEDIFF(YEAR, MIN([Discharge Date]), MAX([Discharge Date])) AS [Difference_in_Years],
+	DATEDIFF(MONTH, MIN([Discharge Date]), MAX([Discharge Date])) AS [Difference_in_Months],
+	DATEDIFF(DAY, MIN([Discharge Date]), MAX([Discharge Date])) AS [Difference_in_Days]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring admission dates in dataset
+SELECT
+	MAX([Date of Admission]) AS [Maximum Admission Date],
+	MIN([Date of Admission]) AS [Minimum Admission Date],
+	DATEDIFF(YEAR, MIN([Date of Admission]), MAX([Date of Admission])) AS [Difference_in_Years],
+	DATEDIFF(MONTH, MIN([Date of Admission]), MAX([Date of Admission])) AS [Difference_in_Months],
+	DATEDIFF(DAY, MIN([Date of Admission]), MAX([Date of Admission])) AS [Difference_in_Days]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Exploring Length of Stay in general & per Medical Condition
+SELECT 
+	AVG(DATEDIFF(DAY, [Date of Admission], [Discharge Date])) AS [Average_Length_of_Stay],
+	MAX(DATEDIFF(DAY, [Date of Admission], [Discharge Date])) AS [Maximum_Length_of_Stay],
+	MIN(DATEDIFF(DAY, [Date of Admission], [Discharge Date])) AS [Minimum_Length_of_Stay]
+FROM 
+	[HospitalData].[dbo].[admission];
+SELECT 
+	[Medical Condition],
+	AVG(DATEDIFF(DAY, [Date of Admission], [Discharge Date])) AS [Average_Length_of_Stay],
+	MAX(DATEDIFF(DAY, [Date of Admission], [Discharge Date])) AS [Maximum_Length_of_Stay],
+	MIN(DATEDIFF(DAY, [Date of Admission], [Discharge Date])) AS [Minimum_Length_of_Stay]
+FROM 
+	[HospitalData].[dbo].[admission]
+GROUP BY
+	[Medical Condition];
+-- Explore billing amounts in dataset
+SELECT
+	ROUND(MIN([Billing Amount]),2) AS [The_Minimum_Bill],
+	ROUND(MAX([Billing Amount]),2) AS [The_Maximum_Bill],
+	ROUND(MAX([Billing Amount]) - MIN([Billing Amount]),2) AS [Difference],
+	ROUND(AVG([Billing Amount]), 2) AS [Average_Billing_Amount]
+FROM
+	[HospitalData].[dbo].[admission];
+-- Finding mistakely entered bills, if exist
+SELECT 
+	*
+FROM
+	[HospitalData].[dbo].[admission]
+WHERE
+	[Billing Amount] < 0;
+-- Exploring number of small bills, between 0 and 50$
+SELECT 
+	*
+FROM
+	[HospitalData].[dbo].[admission]
+WHERE
+	[Billing Amount] BETWEEN 0 AND 50;
+-- Explore billing amounts in dataset
+SELECT
+	ROUND(MIN([Billing Amount]),2) AS [The Minimum Bill],
+	ROUND(MAX([Billing Amount]),2) AS [The Maximum Bill],
+	ROUND(MAX([Billing Amount]) - MIN([Billing Amount]),2) AS [Difference],
+	ROUND(AVG([Billing Amount]), 2) AS [Average Billing Amount]
+FROM
+	[HospitalData].[dbo].[admission]
+WHERE
+	[Billing Amount] > 0
