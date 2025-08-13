@@ -1,0 +1,2109 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+# STEP 1: Data Exploration
+
+# Top 10 rows
+top_10 = admission_data.head(10)
+print(top_10)
+
+# Unique gender values
+unique_genders = admission_data['Gender'].dropna().unique()
+print(unique_genders)
+
+# Age statistics
+age_summary = {
+    "Maximum_Admission_Age": admission_data["Age"].max(),
+    "Minimum_Admission_Age": admission_data["Age"].min(),
+    "Average_Admission_Age": round(admission_data["Age"].mean(), 0)
+}
+print(age_summary)
+
+# Median age
+median_age = admission_data["Age"].median()
+print({"Median_Age": median_age})
+
+# Unique values for other columns
+print(admission_data["Insurance Provider"].dropna().unique())
+print(admission_data["Blood Type"].dropna().unique())
+print(admission_data["Medical Condition"].dropna().unique())
+print(admission_data["Admission Type"].dropna().unique())
+print(admission_data["Test Results"].dropna().unique())
+print(admission_data["Medication"].dropna().unique())
+
+# Count of unique doctors and hospitals
+num_doctors = admission_data["Doctor"].nunique()
+print({"Number_of_Doctors": num_doctors})
+num_hospitals = admission_data["Hospital"].nunique()
+print({"Number_of_Hospitals": num_hospitals})
+
+# Convert dates to datetime if not already
+admission_data['Discharge Date'] = pd.to_datetime(admission_data['Discharge Date'], errors='coerce')
+admission_data['Date of Admission'] = pd.to_datetime(admission_data['Date of Admission'], errors='coerce')
+
+# Discharge date stats
+max_discharge = admission_data['Discharge Date'].max()
+min_discharge = admission_data['Discharge Date'].min()
+discharge_stats = {
+    "Maximum_Discharge_Date": max_discharge,
+    "Minimum_Discharge_Date": min_discharge,
+    "Difference_in_Years": ((max_discharge - min_discharge).days) / 365,
+    "Difference_in_Months": ((max_discharge - min_discharge).days) / 30,
+    "Difference_in_Days": (max_discharge - min_discharge).days
+}
+print(discharge_stats)
+
+# Admission date stats
+max_admission = admission_data['Date of Admission'].max()
+min_admission = admission_data['Date of Admission'].min()
+admission_stats = {
+    "Maximum_Admission_Date": max_admission,
+    "Minimum_Admission_Date": min_admission,
+    "Difference_in_Years": ((max_admission - min_admission).days) / 365,
+    "Difference_in_Months": ((max_admission - min_admission).days) / 30,
+    "Difference_in_Days": (max_admission - min_admission).days
+}
+print(admission_stats)
+
+# Average length of stay
+admission_data["Length_of_Stay"] = (admission_data["Discharge Date"] - admission_data["Date of Admission"]).dt.days
+length_of_stay = {
+    "Average_Length_of_Stay": admission_data["Length_of_Stay"].mean(),
+    "Maximum_Length_of_Stay": admission_data["Length_of_Stay"].max(),
+    "Minimum_Length_of_Stay": admission_data["Length_of_Stay"].min()
+}
+print(length_of_stay)
+
+# Billing statistics
+billing_summary = {
+    "The_Minimum_Bill": round(admission_data["Billing Amount"].min(), 2),
+    "The_Maximum_Bill": round(admission_data["Billing Amount"].max(), 2),
+    "Difference": round(admission_data["Billing Amount"].max() - admission_data["Billing Amount"].min(), 2),
+    "Average_Billing_Amount": round(admission_data["Billing Amount"].mean(), 2)
+}
+print(billing_summary)
+
+# Find bills with negative values
+negative_bills = admission_data[admission_data["Billing Amount"] < 0]
+print("Negative Bills:")
+print(negative_bills)
+
+# Find bills between $0 and $50
+small_bills = admission_data[
+    (admission_data["Billing Amount"] >= 0) & (admission_data["Billing Amount"] <= 50)
+]
+print("Small Bills between $0 and $50:")
+print(small_bills)
+
+# STEP 2: Data Cleaning & Processing
+
+# Normalize patient and doctor names (capitalize first and last names)
+admission_data["Patient_First_Name"] = admission_data["Name"].astype(str).str.split().str[0].str.title()
+admission_data["Patient_Last_Name"] = admission_data["Name"].astype(str).str.split().str[-1].str.title()
+admission_data["Doctor_First_Name"] = admission_data["Doctor"].astype(str).str.split().str[0].str.title()
+admission_data["Doctor_Last_Name"] = admission_data["Doctor"].astype(str).str.split().str[-1].str.title()
+
+# Show top 10 rows
+print(admission_data.head(10))
+
+# Find null or invalid values
+null_values = admission_data[
+    admission_data["Name"].isna() | (admission_data["Name"] == "") |
+    admission_data["Doctor"].isna() | (admission_data["Doctor"] == "") |
+    admission_data["Billing Amount"].isna() | (admission_data["Billing Amount"] <= 0) |
+    admission_data["Admission Type"].isna() | (admission_data["Admission Type"] == "") |
+    admission_data["Medical Condition"].isna() | (admission_data["Medical Condition"] == "") |
+    admission_data["Age"].isna() | (admission_data["Age"] <= 0) |
+    admission_data["Date of Admission"].isna() |
+    admission_data["Hospital"].isna() | (admission_data["Hospital"] == "") |
+    admission_data["Gender"].isna() | (admission_data["Gender"] == "") |
+    admission_data["Blood Type"].isna() | (admission_data["Blood Type"] == "") |
+    admission_data["Insurance Provider"].isna() | (admission_data["Insurance Provider"] == "") |
+    admission_data["Room Number"].isna() | (admission_data["Room Number"] == "") |
+    admission_data["Medication"].isna() |
+    admission_data["Discharge Date"].isna() |
+    admission_data["Test Results"].isna() | (admission_data["Test Results"] == "")
+]
+print("Null or invalid rows:")
+print(null_values)
+
+# Remove duplicates by patient name and date of admission
+admission_data = admission_data.drop_duplicates(subset=["Name", "Date of Admission"], keep="first")
+
+# Standardize gender values
+admission_data.loc[:, "Gender"] = admission_data["Gender"].str.lower().map({
+    "m": "Male", "male": "Male", "man": "Male", "boy": "Male", "men": "Male",
+    "f": "Female", "female": "Female", "woman": "Female", "girl": "Female", "women": "Female"
+}).fillna(admission_data["Gender"])
+
+# Convert date columns to datetime
+admission_data.loc[:, "Date of Admission"] = pd.to_datetime(admission_data["Date of Admission"], errors='coerce')
+admission_data.loc[:, "Discharge Date"] = pd.to_datetime(admission_data["Discharge Date"], errors='coerce')
+
+# Create analysis table with selected columns
+analysis_table = admission_data[[
+    "Patient_First_Name", "Patient_Last_Name", "Age", "Gender", "Blood Type", "Medical Condition",
+    "Date of Admission", "Doctor_First_Name", "Doctor_Last_Name", "Hospital",
+    "Insurance Provider", "Billing Amount", "Room Number", "Admission Type",
+    "Discharge Date", "Medication", "Test Results"
+]].copy()
+
+# Remove common titles from first names
+def remove_title(name):
+    if pd.isnull(name):
+        return name
+    return re.sub(r"^(Dr\.|Mr\.|Miss)\s*", "", name).strip()
+
+analysis_table["Doctor_First_Name"] = analysis_table["Doctor_First_Name"].apply(remove_title)
+analysis_table["Patient_First_Name"] = analysis_table["Patient_First_Name"].apply(remove_title)
+
+# Display the cleaned table
+print("Cleaned Analysis Table:")
+print(analysis_table.head())
+
+# STEP 3: Analysis & Insights
+
+# Group by doctor to find number of patients and total bill
+top_doctors_by_patients = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], as_index=False)
+    .agg(Number_of_Patients_Treated=("Patient_First_Name", "count"),
+         total_Bill=("Billing Amount", "sum"))
+    .sort_values(by="Number_of_Patients_Treated", ascending=False)
+    .head(10)
+)
+
+print("Top 10 Doctors by Number of Patients Treated:")
+print(top_doctors_by_patients)
+
+top_doctors_by_bill = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], as_index=False)
+    .agg(Number_of_Patients_Treated=("Patient_First_Name", "count"),
+         total_Bill=("Billing Amount", "sum"))
+    .sort_values(by="total_Bill", ascending=False)
+    .head(10)
+)
+
+print("Top 10 Doctors by Total Billing Amount:")
+print(top_doctors_by_bill)
+
+# Correlation between number of patients and total bill
+correlation, p_value = pearsonr(
+    top_doctors_by_patients["Number_of_Patients_Treated"],
+    top_doctors_by_patients["total_Bill"]
+)
+
+print(f"Correlation: {correlation:.2f}, P-value: {p_value:.4f}")
+
+# Combine names for plotting
+top_doctors_by_patients["Doctor"] = top_doctors_by_patients["Doctor_First_Name"] + " " + top_doctors_by_patients["Doctor_Last_Name"]
+top_doctors_by_bill["Doctor"] = top_doctors_by_bill["Doctor_First_Name"] + " " + top_doctors_by_bill["Doctor_Last_Name"]
+
+# Plot 1: Top 10 Doctors by Number of Patients
+plt.figure(figsize=(10, 6))
+sns.barplot(data=top_doctors_by_patients, x="Doctor", y="Number_of_Patients_Treated", color="steelblue")
+plt.title("Top 10 Doctors by Number of Patients Treated")
+plt.xlabel("Doctor")
+plt.ylabel("Patients Treated")
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# Plot 2: Top 10 Doctors by Total Bill
+plt.figure(figsize=(10, 6))
+sns.barplot(data=top_doctors_by_bill, x="Doctor", y="total_Bill", color="darkgreen")
+plt.title("Top 10 Doctors by Total Billing Amount")
+plt.xlabel("Doctor")
+plt.ylabel("Total Bill")
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# Plot 3: Correlation between Number of Patients and Total Bill
+plt.figure(figsize=(8, 6))
+sns.regplot(
+    data=top_doctors_by_patients,
+    x="Number_of_Patients_Treated",
+    y="total_Bill",
+    scatter_kws={"color": "purple", "s": 60},
+    line_kws={"color": "black"}
+)
+plt.title("Correlation Between Number of Patients and Total Bill")
+plt.xlabel("Patients Treated")
+plt.ylabel("Total Bill")
+plt.tight_layout()
+plt.show()
+
+# Create a new table for complex analysis with clean column names and rounded billing
+# Convert date columns to datetime
+analysis_table["Date of Admission"] = pd.to_datetime(analysis_table["Date of Admission"], errors='coerce')
+analysis_table["Discharge Date"] = pd.to_datetime(analysis_table["Discharge Date"], errors='coerce')
+
+# Start transforming the table
+analysis_table["Billing_Amount"] = analysis_table["Billing Amount"].round(2)
+
+# Admission date features
+analysis_table["Admission_Year"] = analysis_table["Date of Admission"].dt.year
+analysis_table["Admission_Month"] = analysis_table["Date of Admission"].dt.month
+analysis_table["Admission_Week"] = analysis_table["Date of Admission"].dt.isocalendar().week
+analysis_table["Admission_Day"] = analysis_table["Date of Admission"].dt.day
+analysis_table["Admission_WeekDay_Number"] = analysis_table["Date of Admission"].dt.weekday + 1
+analysis_table["Admission_WeekDay_Name"] = analysis_table["Date of Admission"].dt.day_name()
+
+# Discharge date features
+analysis_table["Discharge_Year"] = analysis_table["Discharge Date"].dt.year
+analysis_table["Discharge_Month"] = analysis_table["Discharge Date"].dt.month
+analysis_table["Discharge_Week"] = analysis_table["Discharge Date"].dt.isocalendar().week
+analysis_table["Discharge_Day"] = analysis_table["Discharge Date"].dt.day
+analysis_table["Discharge_WeekDay_Number"] = analysis_table["Discharge Date"].dt.weekday + 1
+analysis_table["Discharge_WeekDay_Name"] = analysis_table["Discharge Date"].dt.day_name()
+
+# Length of stay
+analysis_table["Length_of_Stay_in_Days"] = (analysis_table["Discharge Date"] - analysis_table["Date of Admission"]).dt.days
+analysis_table["Length_of_Stay_in_Months"] = (
+    (analysis_table["Discharge Date"].dt.to_period("M") - analysis_table["Date of Admission"].dt.to_period("M")).apply(lambda x: x.n)
+)
+
+# Gender binaries
+analysis_table["Male"] = (analysis_table["Gender"] == "Male").astype(int)
+analysis_table["Female"] = (analysis_table["Gender"] == "Female").astype(int)
+
+# Medical conditions
+conditions = ["Arthritis", "Asthma", "Cancer", "Diabetes", "Hypertension", "Obesity"]
+for cond in conditions:
+    analysis_table[cond] = (analysis_table["Medical Condition"] == cond).astype(int)
+
+# Age ranges
+def age_range(age):
+    if pd.isna(age): return np.nan
+    if age < 18: return "BELOW 18"
+    elif age < 30: return "BETWEEN 18 & 30"
+    elif age < 45: return "BETWEEN 30 & 45"
+    elif age < 60: return "BETWEEN 45 & 60"
+    else: return "Above 60"
+
+analysis_table["Age_Range"] = analysis_table["Age"].apply(age_range)
+analysis_table["Below_18"] = (analysis_table["Age"] < 18).astype(int)
+analysis_table["Between_18_30"] = ((analysis_table["Age"] >= 18) & (analysis_table["Age"] < 30)).astype(int)
+analysis_table["Between_30_45"] = ((analysis_table["Age"] >= 30) & (analysis_table["Age"] < 45)).astype(int)
+analysis_table["Between_45_60"] = ((analysis_table["Age"] >= 45) & (analysis_table["Age"] < 60)).astype(int)
+analysis_table["Above_60"] = (analysis_table["Age"] >= 60).astype(int)
+
+# Length of Stay categories
+def stay_cat(days):
+    if pd.isna(days): return np.nan
+    if days < 3: return "Below 3 Days"
+    elif days < 7: return "Between 3 & 7 Days"
+    elif days < 15: return "Between 7 & 15 Days"
+    else: return "Above 15 Days"
+
+analysis_table["Length_of_Stay_Category"] = analysis_table["Length_of_Stay_in_Days"].apply(stay_cat)
+analysis_table["Below_3_Days"] = (analysis_table["Length_of_Stay_in_Days"] < 3).astype(int)
+analysis_table["Between_3_7_Days"] = ((analysis_table["Length_of_Stay_in_Days"] >= 3) & (analysis_table["Length_of_Stay_in_Days"] < 7)).astype(int)
+analysis_table["Between_7_15_Days"] = ((analysis_table["Length_of_Stay_in_Days"] >= 7) & (analysis_table["Length_of_Stay_in_Days"] < 15)).astype(int)
+analysis_table["Above_15_Days"] = (analysis_table["Length_of_Stay_in_Days"] >= 15).astype(int)
+
+# Insurance provider columns
+providers = ["MedHealth", "SecureLife", "CarePlus", "LifeShield", "HealthFirst"]
+for provider in providers:
+    analysis_table[provider] = (analysis_table["Insurance Provider"] == provider).astype(int)
+
+# Medications
+medications = ["Amoxicillin", "Azithromycin", "Ibuprofen", "Lisinopril", "Metformin", "Omeprazole", "Simvastatin"]
+for med in medications:
+    analysis_table[med] = (analysis_table["Medication"] == med).astype(int)
+
+# Blood types
+blood_types = {
+    "A+": "A_Positive",
+    "B+": "B_Positive",
+    "AB+": "AB_Positive",
+    "O+": "O_Positive",
+    "A-": "A_Negative",
+    "B-": "B_Negative",
+    "AB-": "AB_Negative",
+    "O-": "O_Negative"
+}
+for bt, col in blood_types.items():
+    analysis_table[col] = (analysis_table["Blood Type"] == bt).astype(int)
+
+# Billing range categories
+def billing_range(amount):
+    if amount < 100: return "Below 100$"
+    elif amount < 1000: return "Between 100 & 1000$"
+    elif amount < 5000: return "Between 1000 & 5000$"
+    elif amount < 10000: return "Between 5000 & 10000$"
+    elif amount < 25000: return "Between 10000 & 25000$"
+    elif amount < 50000: return "Between 25000 & 50000$"
+    else: return "Above 50000$"
+
+analysis_table["Billing_Range"] = analysis_table["Billing Amount"].apply(billing_range)
+analysis_table["Below_100"] = (analysis_table["Billing Amount"] < 100).astype(int)
+analysis_table["Between_100_1000"] = ((analysis_table["Billing Amount"] >= 100) & (analysis_table["Billing Amount"] < 1000)).astype(int)
+analysis_table["Between_1000_5000"] = ((analysis_table["Billing Amount"] >= 1000) & (analysis_table["Billing Amount"] < 5000)).astype(int)
+analysis_table["Between_5000_10000"] = ((analysis_table["Billing Amount"] >= 5000) & (analysis_table["Billing Amount"] < 10000)).astype(int)
+analysis_table["Between_10000_25000"] = ((analysis_table["Billing Amount"] >= 10000) & (analysis_table["Billing Amount"] < 25000)).astype(int)
+analysis_table["Between_25000_50000"] = ((analysis_table["Billing Amount"] >= 25000) & (analysis_table["Billing Amount"] < 50000)).astype(int)
+analysis_table["Above_50000"] = (analysis_table["Billing Amount"] > 50000).astype(int)
+
+# Day of admission
+analysis_table["Day_of_Admission"] = analysis_table["Date of Admission"].dt.day_name()
+
+# Weekday dummies
+days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+for day in days:
+    analysis_table[day] = (analysis_table["Day_of_Admission"] == day).astype(int)
+
+analysis_table.head()
+
+# Calculating Percentages
+
+# Define a function to calculate percentage distribution for a specific column
+def calculate_percentage(df, column_name):
+    """
+    Calculates the percentage distribution for a specific column in a DataFrame.
+    """
+    summary = (
+        df[column_name]
+        .value_counts(dropna=False)
+        # Name the new column with the counts 'Total_Patients'
+        .reset_index(name="Total_Patients")
+        # Rename the 'index' column to the original column's name
+        .rename(columns={"index": column_name})
+    )
+    
+    
+    summary["Percentage"] = round((summary["Total_Patients"] / summary["Total_Patients"].sum()) * 100, 2)
+    
+    return summary.sort_values(by="Percentage", ascending=False).reset_index(drop=True)
+
+# Blood Type Percentages
+blood_type_percent = calculate_percentage(analysis_table, "Blood Type")
+
+# Gender Percentages
+gender_percent = calculate_percentage(analysis_table, "Gender")
+
+# Medical Condition Percentages
+medical_condition_percent = calculate_percentage(analysis_table, "Medical Condition")
+
+# Insurance Provider Percentages
+insurance_provider_percent = calculate_percentage(analysis_table, "Insurance Provider")
+
+# Admission Type Percentages
+admission_type_percent = calculate_percentage(analysis_table, "Admission Type")
+
+# Medication Percentages
+medication_percent = calculate_percentage(analysis_table, "Medication")
+
+# Display results
+print("Blood Type Percentages:")
+print(blood_type_percent)
+
+print("\nGender Percentages:")
+print(gender_percent)
+
+print("\nMedical Condition Percentages:")
+print(medical_condition_percent)
+
+print("\nInsurance Provider Percentages:")
+print(insurance_provider_percent)
+
+print("\nAdmission Type Percentages:")
+print(admission_type_percent)
+
+print("\nMedication Percentages:")
+print(medication_percent)
+
+# Most Billed Doctor based on AVG, MAX, SUM, and Number of patients
+top_doctors_all = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 0)),
+        Total_Billing_Amount=("Billing Amount", lambda x: round(x.sum(skipna=True), 0)),
+        Maximum_Billing_Amount=("Billing Amount", lambda x: round(x.max(skipna=True), 0)),
+        Number_of_Patients=("Billing Amount", "count")
+    )
+    .reset_index()
+    .sort_values(by="Average_Billing_Amount", ascending=False)
+    .head(10)
+)
+
+print("Top Doctors Overall (All Time):")
+print(top_doctors_all)
+
+# Most Billed Doctor in last 3 months
+max_date = analysis_table["Date of Admission"].max()
+date_threshold = max_date - relativedelta(months=3)
+
+filtered_last_3_months = analysis_table[analysis_table["Date of Admission"] >= date_threshold]
+
+top_doctors_3months = (
+    filtered_last_3_months
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 0)),
+        Total_Billing_Amount=("Billing Amount", lambda x: round(x.sum(skipna=True), 0)),
+        Maximum_Billing_Amount=("Billing Amount", lambda x: round(x.max(skipna=True), 0)),
+        Number_of_Patients=("Billing Amount", "count")
+    )
+    .reset_index()
+    .sort_values(by="Average_Billing_Amount", ascending=False)
+    .head(10)
+)
+
+print("\nTop Doctors in Last 3 Months:")
+print(top_doctors_3months)
+
+# Doctors Who Treated the Most Patients
+most_patients_doctors = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Number_of_Patients_Treated=("Billing Amount", "count"),
+        Average_Billing_Amount=("Billing Amount", "mean")
+    )
+    .reset_index()
+    .sort_values(by=["Number_of_Patients_Treated", "Average_Billing_Amount"], ascending=[False, False])
+    .head(10)
+)
+
+print("\nDoctors Who Treated the Most Patients:")
+print(most_patients_doctors)
+
+# 1. Doctors Who Treated the Most Patients in the Last 3 Months
+max_date = analysis_table["Date of Admission"].max()
+date_threshold = max_date - relativedelta(months=3)
+
+most_recent_doctors = (
+    analysis_table[analysis_table["Date of Admission"] >= date_threshold]
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Number_of_Patients_Treated=("Billing Amount", "count"),
+        Average_Billing_Amount=("Billing Amount", "mean")
+    )
+    .reset_index()
+    .sort_values(by=["Number_of_Patients_Treated", "Average_Billing_Amount"], ascending=[False, False])
+    .head(10)
+)
+
+print("Doctors Who Treated the Most Patients in the Last 3 Months:")
+print(most_recent_doctors)
+
+# 2. Hospitals That Treated the Most Patients
+most_patients_hospitals = (
+    analysis_table
+    .groupby("Hospital", dropna=False)
+    .agg(
+        Number_of_Patients_Treated=("Billing Amount", "count"),
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 2))
+    )
+    .reset_index()
+    .sort_values(by=["Number_of_Patients_Treated", "Average_Billing_Amount"], ascending=[False, False])
+    .head(10)
+)
+
+print("\nHospitals That Treated the Most Patients:")
+print(most_patients_hospitals)
+
+# 3. Most Billed Hospitals
+most_billed_hospitals = (
+    analysis_table
+    .groupby("Hospital", dropna=False)
+    .agg(
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 0)),
+        Total_Billing_Amount=("Billing Amount", lambda x: round(x.sum(skipna=True), 0)),
+        Maximum_Billing_Amount=("Billing Amount", lambda x: round(x.max(skipna=True), 0)),
+        Number_of_Patients=("Billing Amount", "count")
+    )
+    .reset_index()
+    .sort_values(by="Average_Billing_Amount", ascending=False)
+    .head(10)
+)
+
+print("\nMost Billed Hospitals:")
+print(most_billed_hospitals)
+
+# 4. Number of Doctors Who Treated More Than One Patient
+num_doctors_gt1_patient = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(Number_of_Patients=("Billing Amount", "count"))
+    .reset_index()
+    .query("Number_of_Patients > 1")
+    .shape[0]
+)
+
+print(f"\nNumber of Doctors Who Treated More Than One Patient: {num_doctors_gt1_patient}")
+
+
+# Percent of Doctors that treated more than 1 patients
+
+# Step 1: Count number of patients per doctor
+doctor_counts = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(Number_of_Patients=("Billing Amount", "count"))
+    .reset_index()
+)
+
+# Step 2: Count how many doctors treated >1 and exactly 1 patient
+more_than_one = doctor_counts[doctor_counts["Number_of_Patients"] > 1].shape[0]
+equal_one = doctor_counts[doctor_counts["Number_of_Patients"] == 1].shape[0]
+
+# Step 3: Calculate percentage
+total = more_than_one + equal_one
+percentage = round((more_than_one / total) * 100, 2) if total > 0 else 0
+
+# Prepare result dataframe
+import pandas as pd
+
+result = pd.DataFrame({
+    "Sum_more_than_1": [more_than_one],
+    "Sum_equal_1": [equal_one],
+    "Percentage": [percentage]
+})
+
+print("Doctors treating more than one patient:")
+print(result)
+
+# Extract Year and Month from Date of Admission
+billing_trends = (
+    analysis_table
+    .copy()
+    .assign(
+        Admission_Year = analysis_table["Date of Admission"].dt.year,
+        Admission_Month = analysis_table["Date of Admission"].dt.month
+    )
+    .groupby(["Admission_Year", "Admission_Month"], dropna=False)
+    .agg(
+        Total_Bill=("Billing Amount", lambda x: x.sum(skipna=True)),
+        Average_Bill=("Billing Amount", lambda x: x.mean(skipna=True)),
+        Maximum_Bill=("Billing Amount", lambda x: x.max(skipna=True)),
+        Minimum_Bill=("Billing Amount", lambda x: x.min(skipna=True))
+    )
+    .reset_index()
+    .sort_values(by="Total_Bill", ascending=False)
+)
+
+print("\nBilling Trends by Year and Month:")
+print(billing_trends)
+
+# Plotting the previous results 
+
+#Make sure that the date column exists and is properly formatted.
+
+billing_trends["Admission_Date"] = pd.to_datetime(
+    billing_trends["Admission_Year"].astype(str) + "-" + billing_trends["Admission_Month"].astype(str) + "-01"
+)
+
+# pilling amount per month
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=billing_trends, x="Admission_Date", y="Total_Bill", color="blue", linewidth=2)
+sns.scatterplot(data=billing_trends, x="Admission_Date", y="Total_Bill", color="red", s=60)
+
+plt.title("Total Billing Amount Trend by Month and Year")
+plt.xlabel("Admission Date (Year-Month)")
+plt.ylabel("Total Billing Amount")
+plt.xticks(rotation=45)
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+plt.tight_layout()
+plt.grid(True)
+plt.show()
+
+billing_by_month = (
+    analysis_table.copy()
+    .assign(Admission_Month = analysis_table["Date of Admission"].dt.month)
+    .groupby("Admission_Month", dropna=False)
+    .agg(
+        Total_Bill=("Billing Amount", "sum"),
+        Average_Bill=("Billing Amount", "mean"),
+        Maximum_Bill=("Billing Amount", "max"),
+        Minimum_Bill=("Billing Amount", "min")
+    )
+    .reset_index()
+    .sort_values(by="Total_Bill", ascending=False)
+)
+
+print("Billing by Month (All Years Combined):")
+print(billing_by_month)
+
+billing_by_year = (
+    analysis_table.copy()
+    .assign(Admission_Year = analysis_table["Date of Admission"].dt.year)
+    .groupby("Admission_Year", dropna=False)
+    .agg(
+        Total_Bill=("Billing Amount", "sum"),
+        Average_Bill=("Billing Amount", "mean"),
+        Maximum_Bill=("Billing Amount", "max"),
+        Minimum_Bill=("Billing Amount", "min")
+    )
+    .reset_index()
+    .sort_values(by="Total_Bill", ascending=False)
+)
+
+print("Billing by Year:")
+print(billing_by_year)
+
+df = analysis_table.copy()
+df["Year_Month"] = df["Date of Admission"].dt.strftime("%Y-%m")
+df["Admission_Year"] = df["Date of Admission"].dt.year
+
+# Number of patients per condition monthly
+patient_counts = (
+    df.groupby(["Year_Month", "Admission_Year", "Medical Condition"], dropna=False)
+    .size()
+    .reset_index(name="Patients_Per_Condition")
+)
+
+# Number of patients per condition yearly
+yearly_total = (
+    df.groupby(["Admission_Year", "Medical Condition"], dropna=False)
+    .size()
+    .reset_index(name="Total_Patients_In_Year")
+)
+
+# Join Tables
+joined = patient_counts.merge(yearly_total, on=["Admission_Year", "Medical Condition"], how="inner")
+
+# Order months
+joined["Month_Rank"] = (
+    joined.groupby("Medical Condition")["Patients_Per_Condition"]
+    .rank(method="first", ascending=False)
+)
+
+# Refine to top 3 months
+top_months = (
+    joined[joined["Month_Rank"] <= 3]
+    .assign(Percent=lambda x: round((x["Patients_Per_Condition"] * 100 / x["Total_Patients_In_Year"]), 2))
+)
+
+# Convert the table to wide format
+result = (
+    top_months
+    .pivot_table(index="Medical Condition", columns="Month_Rank", values=["Year_Month", "Patients_Per_Condition", "Percent"], aggfunc="first")
+)
+
+# Simplify column names
+result.columns = [f"{col[0]}{int(col[1])}" for col in result.columns]
+result = result.reset_index()
+
+print("Top 3 Months per Medical Condition:")
+print(result)
+
+# STEP 4: Diagnostic Analysis 
+
+# Load the data
+
+analysis_table = pd.read_csv(r"C:\Users\alreada\Desktop\El futuro\DATASETs\patients.csv")
+df = analysis_table
+
+# 1. Checking Distributions
+# Graphically (histogram, boxplot, Q-Q plot)
+# numerically by statisical tests (Shapiro-Wilk Test, Kolmogorov-Smirnov Test, Anderson-Darling Test)
+
+# 1.1. Age Distribution
+
+age_data = df['Age'].dropna()
+
+# 1.1.1. Histogram
+
+plt.figure(figsize=(10,5))
+sns.histplot(age_data, kde=True, bins=30)
+plt.title("Age Distribution")
+plt.xlabel("Age")
+plt.ylabel("Frequency")
+plt.show()
+
+# 1.1.2. Boxplot
+
+sns.boxplot(x=age_data)
+plt.title("Boxplot of Age")
+plt.show()
+
+# 1.1.3. Q-Q Plot
+
+from scipy import stats
+stats.probplot(age_data, dist="norm", plot=plt)
+plt.title("Q-Q Plot for Age")
+plt.show()
+
+# 1.1.4.  Kolmogorov-Smirnov Test
+
+ks_test = stats.kstest(age_data, 'norm', args=(age_data.mean(), age_data.std()))
+print("\nKolmogorov–Smirnov Test:")
+print(f"Statistic = {ks_test.statistic}, p-value = {ks_test.pvalue}")
+
+# 1.1.5. Anderson-Darling Test
+
+ad_test = stats.anderson(age_data, dist='norm')
+print("\nAnderson-Darling Test:")
+print(f"Statistic = {ad_test.statistic}")
+for i in range(len(ad_test.critical_values)):
+    print(f"Significance Level {ad_test.significance_level[i]}: Critical Value = {ad_test.critical_values[i]}")
+
+# Age is not normally distributed
+# Attempts to make corrections of Age
+
+# Set Coordinates
+ 
+fig, axes = plt.subplots(3, 2, figsize=(12, 14))
+
+
+# 1) Log Transformation
+log_age = np.log(age_data)
+
+sns.histplot(log_age, kde=True, ax=axes[0, 0], bins=30)
+axes[0, 0].set_title("Histogram - Log Transformed Age")
+
+stats.probplot(log_age, dist="norm", plot=axes[0, 1])
+axes[0, 1].set_title("Q-Q Plot - Log Transformed Age")
+
+# 2) Square Root Transformation
+sqrt_age = np.sqrt(age_data)
+
+sns.histplot(sqrt_age, kde=True, ax=axes[1, 0], bins=30)
+axes[1, 0].set_title("Histogram - Square Root Transformed Age")
+
+stats.probplot(sqrt_age, dist="norm", plot=axes[1, 1])
+axes[1, 1].set_title("Q-Q Plot - Square Root Transformed Age")
+
+
+# 3) Box-Cox Transformation 
+boxcox_age, fitted_lambda = stats.boxcox(age_data)
+
+sns.histplot(boxcox_age, kde=True, ax=axes[2, 0], bins=30)
+axes[2, 0].set_title(f"Histogram - Box-Cox (λ={fitted_lambda:.2f})")
+
+stats.probplot(boxcox_age, dist="norm", plot=axes[2, 1])
+axes[2, 1].set_title("Q-Q Plot - Box-Cox Transformed Age")
+
+plt.tight_layout()
+plt.show()
+
+# 1.2. Billing Amount
+
+bill_data = df['Billing Amount'].dropna()
+
+# 1.2.1. Histogram
+
+plt.figure(figsize=(10,5))
+sns.histplot(bill_data, kde=True, bins=30)
+plt.title("Bill Distribution")
+plt.xlabel("Billing Amount")
+plt.ylabel("Frequency")
+plt.show()
+
+# 1.2.2. Boxplot
+
+sns.boxplot(x=bill_data)
+plt.title("Boxplot of Bill")
+plt.show()
+
+# 1.2.3. Q-Q Plot
+
+stats.probplot(bill_data, dist="norm", plot=plt)
+plt.title("Q-Q Plot for Bill")
+plt.show()
+
+# 1.2.4.  Kolmogorov-Smirnov Test
+
+ks_test = stats.kstest(bill_data, 'norm', args=(bill_data.mean(), bill_data.std()))
+print("\nKolmogorov–Smirnov Test:")
+print(f"Statistic = {ks_test.statistic}, p-value = {ks_test.pvalue}")
+
+# 1.2.5. Anderson-Darling Test
+
+ad_test = stats.anderson(bill_data, dist='norm')
+print("\nAnderson-Darling Test:")
+print(f"Statistic = {ad_test.statistic}")
+for i in range(len(ad_test.critical_values)):
+    print(f"Significance Level {ad_test.significance_level[i]}: Critical Value = {ad_test.critical_values[i]}")
+
+# Bill is not normally distributed
+# Attempts to make corrections of Bill
+
+# Set Coordinates
+ 
+fig, axes = plt.subplots(2, 2, figsize=(12, 14))
+
+
+# 1) Log Transformation
+log_bill = np.log(bill_data)
+
+sns.histplot(log_bill, kde=True, ax=axes[0, 0], bins=30)
+axes[0, 0].set_title("Histogram - Log Transformed Bill")
+
+stats.probplot(log_bill, dist="norm", plot=axes[0, 1])
+axes[0, 1].set_title("Q-Q Plot - Log Transformed Bill")
+
+# 2) Square Root Transformation
+sqrt_bill = np.sqrt(bill_data)
+
+sns.histplot(sqrt_bill, kde=True, ax=axes[1, 0], bins=30)
+axes[1, 0].set_title("Histogram - Square Root Transformed Bill")
+
+stats.probplot(sqrt_bill, dist="norm", plot=axes[1, 1])
+axes[1, 1].set_title("Q-Q Plot - Square Root Transformed Bill")
+
+
+# 1.3. Length of Stay
+
+# make sure that both date of admission and discharge date columns are datetime type
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Calculate Length of Stay
+df['Length of Stay'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+# Print the head values
+print(df[['Date of Admission', 'Discharge Date', 'Length of Stay']].head())
+
+los = df['Length of Stay'].dropna()
+
+# 1.3.1 Histogram
+plt.figure(figsize=(10, 4))
+sns.histplot(los, kde=True, bins=29)
+plt.title("Distribution of Length of Stay")
+plt.xlabel("Days")
+plt.ylabel("Frequency")
+plt.show()
+
+# 1.3.2. Boxplot
+plt.figure(figsize=(8, 5))
+sns.boxplot(x=df['Length of Stay'])
+plt.title("Box Plot of Length of Stay")
+plt.xlabel("Days")
+plt.show()
+
+# 1.3.3. Q-Q plot
+stats.probplot(los, dist="norm", plot=plt)
+plt.title("Q-Q Plot for Length of Stay")
+plt.show()
+
+# 1.3.4.  Kolmogorov-Smirnov Test
+ks_test = stats.kstest(los, 'norm', args=(los.mean(), los.std()))
+print("\nKolmogorov–Smirnov Test:")
+print(f"Statistic = {ks_test.statistic}, p-value = {ks_test.pvalue}")
+
+# 1.3.5.  Anderson-Darling test
+ad_test = stats.anderson(los, dist='norm')
+print(f"Anderson-Darling: statistic={ad_test.statistic:.4f}")
+for sl, cv in zip(ad_test.significance_level, ad_test.critical_values):
+    print(f"  Significance Level {sl}%: Critical Value = {cv}")
+
+# Length of Stay is not normally distributed
+# ANOVA, t-test, paired t-test, pearson r can NOT be used (Data not Normally Distributed)
+# Non-parametric Tests should be used (Kruskal-Wallis H, Mann-Whitney U, Wilcoxon signed-rank test, Spearman correlation)
+
+
+#  2. Finding Outliers: Using interquartile range and boxplot
+
+#  2.1. Age Outliers
+#  2.1.1. InterQuartile Range Method
+Q1 = df['Age'].quantile(0.25)
+Q3 = df['Age'].quantile(0.75)
+IQR = Q3 - Q1
+
+# Range of Allowed Values
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers = df[(df['Age'] < lower_bound) | (df['Age'] > upper_bound)]
+
+print(f"Number of Outliers = {len(outliers)}")
+print(outliers[['Age']])
+
+# Further Illusteration
+print(f"Q1 = {Q1}, Q3 = {Q3}, IQR = {IQR}")
+print(f"Lower Bound = {lower_bound}, Upper Bound = {upper_bound}")
+print(f"Age range: {df['Age'].min()} → {df['Age'].max()}")
+
+#  2.1.2. Boxplot Method with different colored points for outliers
+# Construct New Dataframe for outliers values
+age_df = pd.DataFrame({'Age': age_data})
+age_df['Outlier'] = age_df['Age'].apply(lambda x: 'Outlier' if (x < lower_bound or x > upper_bound) else 'Normal')
+
+# Construct boxplot
+plt.figure(figsize=(10, 4))
+sns.boxplot(x='Age', data=age_df, color='lightgray')
+sns.stripplot(x='Age', data=age_df, hue='Outlier', palette={'Normal': 'blue', 'Outlier': 'red'}, jitter=0.2, size=3, dodge=False)
+
+plt.title("Boxplot of Age with Outliers Highlighted")
+plt.xlabel("Age")
+plt.legend(title='Point Type')
+plt.show()
+	
+#  2.2. Bill Outliers
+#  2.2.1. InterQuartile Range Method
+Q1 = df['Billing Amount'].quantile(0.25)
+Q3 = df['Billing Amount'].quantile(0.75)
+IQR = Q3 - Q1
+
+# Range of Allowed Values
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+# Finding Outliers
+outliers = df[(df['Billing Amount'] < lower_bound) | (df['Billing Amount'] > upper_bound)]
+
+print(f"Number of Outliers = {len(outliers)}")
+print(outliers[['Billing Amount']])
+
+# Further Illusteration
+print(f"Q1 = {Q1}, Q3 = {Q3}, IQR = {IQR}")
+print(f"Lower Bound = {lower_bound}, Upper Bound = {upper_bound}")
+print(f"Billing Amount Range: {df['Billing Amount'].min()} → {df['Billing Amount'].max()}")
+
+#  2.2.2. Boxplot Method
+# Construct New Dataframe for outliers values
+bill_df = pd.DataFrame({'Billing Amount': bill_data})
+bill_df['Outlier'] = bill_df['Billing Amount'].apply(lambda x: 'Outlier' if (x < lower_bound or x > upper_bound) else 'Normal')
+
+# Construct boxplot
+plt.figure(figsize=(10, 4))
+sns.boxplot(x='Billing Amount', data=bill_df, color='lightgray')
+sns.stripplot(x='Billing Amount', data=bill_df, hue='Outlier', palette={'Normal': 'blue', 'Outlier': 'red'}, jitter=0.2, size=3, dodge=False)
+
+plt.title("Boxplot of Billing Amount with Outliers Highlighted")
+plt.xlabel("Billing Amount")
+plt.legend(title='Point Type')
+plt.show()
+
+#  2.3. Length of Stay Outliers
+#  2.3.1. InterQuartile Range Method
+df['los'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+Q1 = df['los'].quantile(0.25)
+Q3 = df['los'].quantile(0.75)
+IQR = Q3 - Q1
+
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+outliers = df[(df['los'] < lower_bound) | (df['los'] > upper_bound)]
+
+print(f"Number of Outliers = {len(outliers)}")
+print(outliers[['los']])
+
+
+# Further Illusteration
+print(f"Q1 = {Q1}, Q3 = {Q3}, IQR = {IQR}")
+print(f"Lower Bound = {lower_bound}, Upper Bound = {upper_bound}")
+print(f"Length of Stay Range: {df['los'].min()} → {df['los'].max()}")
+
+#  2.3.2. Boxplot Method
+
+df['Outlier'] = df['los'].apply(lambda x: 'Outlier' if (x < lower_bound or x > upper_bound) else 'Normal')
+plt.figure(figsize=(10, 5))
+sns.boxplot(x='los', data=df, color='lightgray')
+
+sns.stripplot(x='los', data=df, hue='Outlier', palette={'Normal': 'black', 'Outlier': 'red'}, jitter=0.2, size=5)
+
+plt.title("Boxplot of Length of Stay with Colored Outliers")
+plt.xlabel("Length of Stay (Days)")
+plt.legend(title='Point Type')
+plt.grid(True)
+plt.show()
+
+# 2.4. Boxplot with Outliers of Length of stay by Admission Type
+plt.figure(figsize=(12, 5))
+sns.boxplot(x='Admission Type', y='los', data=df, palette='Set2')
+plt.title("Length of Stay by Admission Type")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.show()
+
+# 2.5. Boxplot with Outliers of Length of stay by Admission Type and Gender
+plt.figure(figsize=(12, 6))
+sns.boxplot(x='Admission Type', y='los', hue='Gender', data=df, palette='pastel')
+plt.title("Length of Stay by Admission Type and Gender")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.legend(title='Gender')
+plt.grid(True)
+plt.show()
+
+# 2.6. Boxplot, Stripplot with Outliers of Length of stay by Admission Type and Gender (Colored by Age)
+plt.figure(figsize=(14, 6))
+
+# Boxplot by admission type and gender
+sns.boxplot(x='Admission Type', y='los', hue='Gender', data=df, palette='pastel')
+
+# Stripplot  (Age)
+sns.stripplot(
+    x='Admission Type',
+    y='los',
+    data=df,
+    hue='Age',  # color by Age
+    dodge=True,
+    palette='coolwarm',  # color stratification by age
+    size=5,
+    jitter=0.25,
+    alpha=0.5,
+    legend=False
+)
+
+plt.title("Length of Stay by Admission Type and Gender (Colored by Age)")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# 2.7. Boxplot with Outliers of Length of stay by Admission Type and Gender (Colored by Age)
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100], labels=['<20', '20-40', '40-60', '60-80', '80+'])
+plot_df = df.dropna(subset=['AgeGroup', 'Admission Type', 'los', 'Gender'])
+
+# Facetgrid per gender
+g = sns.catplot(
+    data=plot_df,
+    x='Admission Type',
+    y='los',
+    hue='AgeGroup',
+    col='Gender',  
+    kind='box',
+    palette='coolwarm',
+    height=5,
+    aspect=1.3
+)
+
+g.set_titles("Gender: {col_name}")
+g.set_axis_labels("Admission Type", "Length of Stay (Days)")
+g.set_xticklabels(rotation=45)
+g.add_legend(title="Age Group")
+
+plt.subplots_adjust(top=0.85)
+g.fig.suptitle("Length of Stay by Admission Type, Age Group, and Gender")
+plt.show()
+
+# 2.8.Boxplot with Outliers of Length of stay by Admission Type and Age
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100], labels=['<20', '20-40', '40-60', '60-80', '80+'])
+
+plt.figure(figsize=(14, 6))
+sns.boxplot(x='Admission Type', y='los', hue='AgeGroup', data=df, palette='coolwarm')
+
+plt.title("Length of Stay by Admission Type and Age Group")
+plt.xlabel("Admission Type")
+plt.ylabel("Length of Stay (Days)")
+plt.xticks(rotation=45)
+plt.legend(title='Age Group')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# 3. Frequency Analysis of Categorical (Qualitative) Data
+df['Gender'].value_counts()
+df['Admission Type'].value_counts()
+df['Insurance Provider'].value_counts()
+df['Medication'].value_counts()
+df['Medical Condition'].value_counts()
+df['Test Results'].value_counts()
+df['Blood Type'].value_counts()
+
+# 4. Test and Quantify relationships between Caegorical variables
+
+# 4.1. Gender & Admission Type
+table = pd.crosstab(df['Gender'], df['Admission Type'])
+
+# Chi-Square Test
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#Cramer's Test
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    r, k = confusion_matrix.shape
+    return np.sqrt(chi2 / (n * (min(k, r) - 1)))
+
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+# Contingency Table
+contingency = pd.crosstab(df['Gender'], df['Admission Type'])
+print("Contingency Table:")
+print(contingency)
+
+chi2, p, dof, expected = chi2_contingency(contingency)
+expected_df = pd.DataFrame(expected, index=contingency.index, columns=contingency.columns)
+print("\nExpected Counts:")
+print(expected_df)
+
+contingency.plot(kind='bar', stacked=True, colormap='Set2')
+plt.title("Admission Type by Gender")
+plt.ylabel("Number of Patients")
+plt.xlabel("Gender")
+plt.xticks(rotation=0)
+plt.legend(title="Admission Type")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+# 4.2. Age & Admission Type
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100],
+                        labels=['<20', '20-39', '40-59', '60-79', '80+'])
+
+# Create contingency table
+table = pd.crosstab(df['AgeGroup'], df['Admission Type'])
+
+# Chi-Square Test
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+# Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    r, k = confusion_matrix.shape
+    return np.sqrt(chi2 / (n * (min(k, r) - 1)))
+
+# Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+# Print contingency table
+print("Contingency Table:")
+print(table)
+
+# Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df)
+
+# Plot
+table.plot(kind='bar', stacked=True, colormap='Set3')
+plt.title("Admission Type by Age Group")
+plt.ylabel("Number of Patients")
+plt.xlabel("Age Group")
+plt.xticks(rotation=0)
+plt.legend(title="Admission Type")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+# 4.3. Medical Condition & Admission Type
+# Create contingency table
+table = pd.crosstab(df['Medical Condition'], df['Admission Type'])
+
+# Chi-Square Test
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+# Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    r, k = confusion_matrix.shape
+    return np.sqrt(chi2 / (n * (min(k, r) - 1)))
+
+# Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+# Print contingency table
+print("Contingency Table:")
+print(table)
+
+# Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df)
+
+# Plot
+table.plot(kind='bar', stacked=True, colormap='Pastel2')
+plt.title("Admission Type by Medical Condition")
+plt.ylabel("Number of Patients")
+plt.xlabel("Medical Condition")
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Admission Type")
+plt.grid(axis='y')
+plt.tight_layout()
+plt.show()
+
+# 4.4. Medical Condition & Insurance Provider 
+
+table = pd.crosstab(df['Medical Condition'], df['Insurance Provider'])
+
+#  Chi-Square Test of Independence
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#  Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2_corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    r_corr = r - ((r-1)**2)/(n-1)
+    k_corr = k - ((k-1)**2)/(n-1)
+    # The formula for Cramer's V is the square root of the chi-squared statistic 
+    # divided by the sample size and the minimum of (rows-1) or (cols-1)
+    return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1)))
+
+
+#  Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+#  Print contingency table
+print("\nContingency Table:")
+print(table)
+
+#  Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df.round(2)) # Rounded for cleaner output
+
+#  Plot the results
+table.plot(kind='bar', stacked=True, figsize=(12, 7), colormap='viridis')
+plt.title("Distribution of Insurance Provider by Medical Condition", fontsize=16)
+plt.ylabel("Number of Patients", fontsize=12)
+plt.xlabel("Medical Condition", fontsize=12)
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Insurance Provider", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout() # Adjusts plot to ensure everything fits without overlapping
+plt.show()
+
+# 4.5. Medical Condition & Test Results
+
+table = pd.crosstab(df['Medical Condition'], df['Test Results'])
+
+#  Chi-Square Test of Independence
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#  Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2_corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    r_corr = r - ((r-1)**2)/(n-1)
+    k_corr = k - ((k-1)**2)/(n-1)
+    # The formula for Cramer's V is the square root of the chi-squared statistic 
+    # divided by the sample size and the minimum of (rows-1) or (cols-1)
+    return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1)))
+
+
+#  Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+#  Print contingency table
+print("\nContingency Table:")
+print(table)
+
+#  Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df.round(2)) # Rounded for cleaner output
+
+#  Plot the results
+table.plot(kind='bar', stacked=True, figsize=(12, 7), colormap='YlGnBu')
+plt.title("Distribution of Test Results by Medical Condition", fontsize=16)
+plt.ylabel("Number of Patients", fontsize=12)
+plt.xlabel("Medical Condition", fontsize=12)
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Test Results", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout() # Adjusts plot to ensure everything fits without overlapping
+plt.show()
+
+# 4.6. Medical Condition & Medication
+
+table = pd.crosstab(df['Medical Condition'], df['Medication'])
+
+#  Chi-Square Test of Independence
+chi2, p, dof, expected = chi2_contingency(table)
+print(f"Chi-square statistic = {chi2:.2f}, p-value = {p:.4f}")
+
+#  Cramer's V function
+def cramers_v(confusion_matrix):
+    chi2 = chi2_contingency(confusion_matrix)[0]
+    n = confusion_matrix.sum().sum()
+    phi2 = chi2 / n
+    r, k = confusion_matrix.shape
+    phi2_corr = max(0, phi2 - ((k-1)*(r-1))/(n-1))
+    r_corr = r - ((r-1)**2)/(n-1)
+    k_corr = k - ((k-1)**2)/(n-1)
+    # The formula for Cramer's V is the square root of the chi-squared statistic 
+    # divided by the sample size and the minimum of (rows-1) or (cols-1)
+    return np.sqrt(phi2_corr / min((k_corr-1), (r_corr-1)))
+
+
+#  Calculate Cramer's V
+cramers_v_value = cramers_v(table)
+print(f"Cramér's V = {cramers_v_value:.2f}")
+
+#  Print contingency table
+print("\nContingency Table:")
+print(table)
+
+#  Print expected counts
+expected_df = pd.DataFrame(expected, index=table.index, columns=table.columns)
+print("\nExpected Counts:")
+print(expected_df.round(2)) # Rounded for cleaner output
+
+#  Plot the results
+table.plot(kind='bar', stacked=True, figsize=(12, 7), colormap='cividis')
+plt.title("Distribution of Medication by Medical Condition", fontsize=16)
+plt.ylabel("Number of Patients", fontsize=12)
+plt.xlabel("Medical Condition", fontsize=12)
+plt.xticks(rotation=45, ha='right')
+plt.legend(title="Medication", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.tight_layout() # Adjusts plot to ensure everything fits without overlapping
+plt.show()
+
+#  5. Log-Linear Model for 3-Way Interaction
+# Age, Medical Condition, Admission Type
+
+# Step 1: Create Age Groups
+df['AgeGroup'] = pd.cut(df['Age'], bins=[0, 20, 40, 60, 80, 100],
+                        labels=['<20', '20-39', '40-59', '60-79', '80+'])
+
+# Step 2: Create 3-way contingency table
+table = pd.crosstab(
+    [df['AgeGroup'], df['Medical Condition']],
+    df['Admission Type']
+).stack().reset_index().rename(columns={0: 'Count'})
+
+# Step 3: Fit log-linear model (Poisson regression)
+model = smf.glm(
+    formula='Count ~ AgeGroup * Q("Medical Condition") * Q("Admission Type")',
+    data=table,
+    family=sm.families.Poisson()
+).fit()
+
+# Step 4: Summary output
+print(model.summary())
+
+#  6. Cohort Analysis comparing cancer patients admitted in winter vs. summer on:
+#  Length of Stay, Billing Amount
+# Step 1: Ensure date columns are in datetime format
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Step 2: Create Season Column
+def get_season(date):
+    month = date.month
+    if month in [12, 1, 2]:
+        return 'Winter'
+    elif month in [6, 7, 8]:
+        return 'Summer'
+    else:
+        return 'Other'  # Spring/Fall (optional to include)
+
+df['Season'] = df['Date of Admission'].apply(get_season)
+
+# Step 3: Filter cancer patients in Winter and Summer
+cancer_df = df[(df['Medical Condition'].str.lower() == 'cancer') & df['Season'].isin(['Winter', 'Summer'])]
+
+# Step 4: Calculate Length of Stay (in days)
+cancer_df.loc[:, 'Length of Stay'] = (cancer_df['Discharge Date'] - cancer_df['Date of Admission']).dt.days
+
+# Step 5: Split cohorts
+winter = cancer_df[cancer_df['Season'] == 'Winter']
+summer = cancer_df[cancer_df['Season'] == 'Summer']
+
+# Step 6: Summary Stats
+print("\n=== Cohort Summary ===")
+print("Winter cohort:")
+print(winter[['Length of Stay', 'Billing Amount']].describe())
+print("\nSummer cohort:")
+print(summer[['Length of Stay', 'Billing Amount']].describe())
+
+# Step 7: Statistical Tests
+# Use t-test or Mann-Whitney depending on distribution
+
+print("\n=== Statistical Tests ===")
+# Length of Stay
+stat, p1 = mannwhitneyu(winter['Length of Stay'], summer['Length of Stay'], alternative='two-sided')
+print(f"Length of Stay - Mann-Whitney U Test: U={stat:.2f}, p={p1:.4f}")
+
+# Billing Amount
+stat, p2 = mannwhitneyu(winter['Billing Amount'], summer['Billing Amount'], alternative='two-sided')
+print(f"Billing Amount - Mann-Whitney U Test: U={stat:.2f}, p={p2:.4f}")
+
+# Step 8: Visualization
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+sns.boxplot(data=cancer_df, x='Season', y='Length of Stay', palette='Set2')
+plt.title('Length of Stay: Cancer Patients (Winter vs Summer)')
+
+plt.subplot(1, 2, 2)
+sns.boxplot(data=cancer_df, x='Season', y='Billing Amount', palette='Set3')
+plt.title('Billing Amount: Cancer Patients (Winter vs Summer)')
+
+plt.tight_layout()
+plt.show()
+
+#  7.1. Time Series Analysis for Length of Stay (LOS), Billing Amount among cancer patients across time
+
+# Step 1: Parse date columns
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Step 2: Filter cancer patients only
+cancer_df = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Step 3: Calculate Length of Stay (LOS)
+cancer_df['Length of Stay'] = (cancer_df['Discharge Date'] - cancer_df['Date of Admission']).dt.days
+
+# Step 4: Create 'Month' column for time grouping
+cancer_df['Month'] = cancer_df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Step 5: Aggregate by Month
+monthly_ts = cancer_df.groupby('Month').agg({
+    'Length of Stay': 'mean',
+    'Billing Amount': 'mean',
+    'Date of Admission': 'count'  # optional: number of cancer patients per month
+}).rename(columns={'Date of Admission': 'Patient Count'})
+
+# Step 6: Plot the time series
+plt.figure(figsize=(14, 6))
+
+# Length of Stay
+plt.subplot(1, 2, 1)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Length of Stay', marker='o')
+plt.title('Average Length of Stay (LOS) Over Time - Cancer Patients')
+plt.xlabel('Month')
+plt.ylabel('LOS (days)')
+plt.xticks(rotation=45)
+plt.grid(True)
+
+# Billing Amount
+plt.subplot(1, 2, 2)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Billing Amount', marker='o', color='orange')
+plt.title('Average Billing Amount Over Time - Cancer Patients')
+plt.xlabel('Month')
+plt.ylabel('Billing Amount')
+plt.xticks(rotation=45)
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+#  7.2. Time Series Analysis for Length of Stay (LOS), Billing Amount, Patients numbers among cancer patients across time
+
+# Step 1: Parse date columns
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Step 2: Filter cancer patients only
+cancer_df = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Step 3: Calculate Length of Stay (LOS)
+cancer_df['Length of Stay'] = (cancer_df['Discharge Date'] - cancer_df['Date of Admission']).dt.days
+
+# Step 4: Create 'Month' column
+cancer_df['Month'] = cancer_df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Step 5: Aggregate by Month
+monthly_ts = cancer_df.groupby('Month').agg({
+    'Length of Stay': 'mean',
+    'Billing Amount': 'mean',
+    'Date of Admission': 'count'  # number of patients
+}).rename(columns={'Date of Admission': 'Patient Count'})
+
+# Step 6: Plot the 3 time series
+plt.figure(figsize=(16, 9))
+
+# Plot 1: LOS
+plt.subplot(3, 1, 1)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Length of Stay', marker='o')
+plt.title('Average Length of Stay (LOS) Over Time - Cancer Patients')
+plt.xlabel('')
+plt.ylabel('LOS (days)')
+plt.grid(True)
+
+# Plot 2: Billing Amount
+plt.subplot(3, 1, 2)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Billing Amount', marker='o', color='orange')
+plt.title('Average Billing Amount Over Time - Cancer Patients')
+plt.xlabel('')
+plt.ylabel('Billing Amount')
+plt.grid(True)
+
+# Plot 3: Patient Count
+plt.subplot(3, 1, 3)
+sns.lineplot(data=monthly_ts, x=monthly_ts.index, y='Patient Count', marker='o', color='green')
+plt.title('Monthly Number of Cancer Patients Admitted')
+plt.xlabel('Month')
+plt.ylabel('Patient Count')
+plt.xticks(rotation=45)
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+#  8.1. Mann–Whitney U Test (Number vs Two Categorical Groups)
+# Billing Amount vs Admission Types (First Two Types)
+
+top_two_types = df['Admission Type'].value_counts().index[:2]
+filtered = df[df['Admission Type'].isin(top_two_types)]
+
+group1 = filtered[filtered['Admission Type'] == top_two_types[0]]['Billing Amount']
+group2 = filtered[filtered['Admission Type'] == top_two_types[1]]['Billing Amount']
+
+stat, p = mannwhitneyu(group1, group2, alternative='two-sided')
+print(f"\n[Mann–Whitney] Billing Amount between {top_two_types[0]} & {top_two_types[1]}")
+print(f"U = {stat:.2f}, p = {p:.4f}")
+
+
+#  8.2. Kruskal-Wallis Test (Number vs more than 2 Categorical Groups)
+# Length of Stay LOS vs Medical Condition 
+
+from scipy.stats import kruskal
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+df['LOS'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+groups = [group['LOS'].dropna() for name, group in df.groupby('Medical Condition') if len(group) > 1]
+stat, p = kruskal(*groups)
+print(f"\n[Kruskal-Wallis] LOS ")
+print(f"H = {stat:.2f}, p = {p:.4f}")
+
+#  8.3. Spearman Correlation Test (Number vs Number)
+#  Age vs Billing Amount
+
+from scipy.stats import spearmanr
+rho, p = spearmanr(df['Age'], df['Billing Amount'])
+print(f"\n[Spearman] with Billing Amount")
+print(f"rho = {rho:.2f}, p = {p:.4f}")
+
+# LOS vs Billing Amount
+rho, p = spearmanr(df['Age'], df['LOS'])
+print(f"\n[Spearman] with LOS")
+print(f"rho = {rho:.2f}, p = {p:.4f}")
+
+#  8.4. Kolmogorov–Smirnov Test
+#  Admission Types vs LOS
+
+from scipy.stats import ks_2samp
+
+group1 = filtered.loc[filtered['Admission Type'] == top_two_types[0], 'Length of Stay']
+group2 = filtered.loc[filtered['Admission Type'] == top_two_types[1], 'Length of Stay']
+
+stat, p = ks_2samp(group1, group2)
+print(f"\n[KS Test] LOS  {top_two_types[0]} & {top_two_types[1]}")
+print(f"KS = {stat:.2f}, p = {p:.4f}")
+
+# 9.1. Boxplot: Billing Amount by Admission Type
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='Admission Type', y='Billing Amount', data=df)
+plt.title('Billing Amount by Admission Type')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# 9.2. Boxplot: LOS by Medical Condition
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='Medical Condition', y='LOS', data=df)
+plt.title('Length of Stay by Medical Condition')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# 9.3. KDE: Age distribution by Admission Type
+plt.figure(figsize=(8, 5))
+for label in df['Admission Type'].unique():
+    subset = df[df['Admission Type'] == label]
+    sns.kdeplot(subset['Age'], label=label, fill=True)
+plt.title('Age Distribution by Admission Type')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+#  10. Matrix of Correlations and Pairwise Comparisons
+#  10.1.  Spearman Correlation Matrix (Numerical Variables)
+
+# Choose Numerical Variables ONLY
+num_vars = df[['Age', 'Billing Amount', 'LOS']]
+
+# Spearman correlation
+corr = num_vars.corr(method='spearman')
+
+# Heatmap
+plt.figure(figsize=(6, 5))
+sns.heatmap(corr, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
+plt.title('Spearman Correlation Matrix')
+plt.tight_layout()
+plt.show()
+
+#  10.2. Pairplot
+sns.pairplot(num_vars, kind='scatter', plot_kws={'alpha':0.5})
+plt.suptitle("Pairwise Comparisons of Age, Billing Amount, and LOS", y=1.02)
+plt.tight_layout()
+plt.show()
+
+#  10.3. Violin Plot: Billing Amount by Medical Condition
+plt.figure(figsize=(10, 6))
+sns.violinplot(x='Medical Condition', y='Billing Amount', data=df, inner='quartile')
+plt.title('Billing Amount by Medical Condition')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+#  11. Regression Analysis
+#  11.1. Regression Analysis between Age & Billing Amount
+
+X = df['Age']
+y = df['Billing Amount']
+X_const = sm.add_constant(X)
+model = sm.OLS(y, X_const).fit()
+print(model.summary())
+
+# Regression Plot between Age & Billing Amount
+plt.figure(figsize=(8, 6))
+sns.regplot(x='Age', y='Billing Amount', data=df, line_kws={'color': 'red'})
+plt.title('Regression Line: Billing Amount vs Age')
+plt.xlabel('Age')
+plt.ylabel('Billing Amount')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Residual Plot
+X = sm.add_constant(df['Age'])
+model = sm.OLS(df['Billing Amount'], X).fit()
+preds = model.predict(X)
+residuals = df['Billing Amount'] - preds
+plt.figure(figsize=(8, 6))
+sns.residplot(x=preds, y=residuals, lowess=True, line_kws={'color': 'red'})
+plt.axhline(0, color='gray', linestyle='--')
+plt.title('Residual Plot')
+plt.xlabel('Predicted Billing Amount')
+plt.ylabel('Residuals')
+plt.tight_layout()
+plt.show()
+
+# 11.2. Multiple Regression Analysis 
+# Age, Billing Amount, LOS
+df_clean = df[['Age', 'LOS', 'Billing Amount']].copy()
+
+# Drop rows with missing or non-numeric values
+df_clean = df_clean.apply(pd.to_numeric, errors='coerce').dropna()
+
+# Define predictors and outcome
+X = df_clean[['Age', 'LOS']]
+y = df_clean['Billing Amount']
+
+# Add constant for intercept
+import statsmodels.api as sm
+X_const = sm.add_constant(X)
+
+# Fit the regression model
+model = sm.OLS(y, X_const).fit()
+
+# Residuals
+residuals = model.resid
+fitted = model.fittedvalues
+
+# Plot 1: Residual plot
+plt.figure(figsize=(6, 4))
+sns.residplot(x=fitted, y=residuals, lowess=True, line_kws={'color': 'red'})
+plt.xlabel("Fitted values")
+plt.ylabel("Residuals")
+plt.title("Residual Plot")
+plt.tight_layout()
+plt.show()
+
+# Plot 2: Influence Plot (Cook's Distance vs Leverage)
+from statsmodels.graphics.regressionplots import influence_plot
+fig, ax = plt.subplots(figsize=(8, 6))
+influence_plot(model, ax=ax)
+plt.title("Influence Plot (Cook’s Distance vs Leverage)")
+plt.tight_layout()
+plt.show()
+
+# VIF Table
+X_vif = X_const.copy()
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_vif.columns
+vif_data["VIF"] = [variance_inflation_factor(X_vif.values, i) for i in range(X_vif.shape[1])]
+
+model_summary = model.summary()
+
+vif_data, model_summary.tables[1]
+
+# STEP 5: Predictive Analysis, Modelling, Machine Learning
+
+# Load the data
+
+analysis_table = pd.read_csv(r"C:\Users\alreada\Desktop\El futuro\DATASETs\patients.csv")
+df = analysis_table
+
+# 1. number of patients per medical condition in the next three years per month
+# Step 1: Convert 'Date of Admission' to datetime format
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+
+# Step 2: Create 'YearMonth' column
+df['YearMonth'] = df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Step 3: Count patients per month per medical condition
+monthly_counts = df.groupby(['YearMonth', 'Medical Condition']).size().reset_index(name='Patient_Count')
+
+# Step 4: Pivot to wide format
+ts_data = monthly_counts.pivot(index='YearMonth', columns='Medical Condition', values='Patient_Count').fillna(0)
+
+# Step 5: Forecasting per medical condition
+forecast_horizon = 36  # 3 years (months)
+forecast_list = []
+
+for condition in ts_data.columns:
+    y = ts_data[condition]
+    
+    # Fit ETS model
+    model = ETSModel(y, error='add', trend='add', seasonal='add', seasonal_periods=12)
+    fit = model.fit()
+    
+    # Forecast next 36 months
+    forecast_index = pd.date_range(start=ts_data.index[-1] + relativedelta(months=1), periods=forecast_horizon, freq='MS')
+    forecast = fit.forecast(forecast_horizon)
+    
+    forecast_df = pd.DataFrame({
+        'Date': forecast_index,
+        'Condition': condition,
+        'Forecast': forecast.values
+    })
+    forecast_list.append(forecast_df)
+
+# Step 6: Combine all forecasts
+forecast_all = pd.concat(forecast_list, ignore_index=True)
+
+# Step 7: Plot
+plt.figure(figsize=(15, 6))
+sns.lineplot(data=forecast_all, x='Date', y='Forecast', hue='Condition')
+plt.title("Forecast: Monthly Patient Counts per Medical Condition (Next 3 Years)")
+plt.xlabel("Month")
+plt.ylabel("Predicted Patient Count")
+plt.xticks(rotation=45)
+plt.legend(title='Medical Condition')
+plt.tight_layout()
+plt.show()
+
+# Add perceptive commentary: growth rates, seasonality, anomalies
+
+# Calculate average growth rate per condition
+growth_insights = []
+
+for condition in ts_data.columns:
+    y = ts_data[condition]
+    if len(y) > 12:
+        recent = y[-12:].mean()
+        earlier = y[:12].mean()
+        growth = ((recent - earlier) / earlier) * 100 if earlier != 0 else None
+        growth_insights.append({
+            "Condition": condition,
+            "12M Growth (%)": round(growth, 1) if growth else "N/A"
+        })
+
+growth_df = pd.DataFrame(growth_insights)
+print("\n🧠 Growth Insight per Medical Condition:\n")
+print(growth_df.sort_values("12M Growth (%)", ascending=False))
+
+# Comparing the results of different three predictive models 
+
+
+# Set seed for reproducibility
+np.random.seed(42)
+
+# Create monthly sample data for 4 years
+dates = pd.date_range(start="2020-01-01", periods=48, freq='MS')
+patients = np.round(100 + 10 * np.sin(np.arange(48) * 2 * np.pi / 12) + np.random.normal(0, 5, 48))
+df = pd.DataFrame({'Date': dates, 'Patients': patients})
+
+# Convert to time series format
+ts_data = pd.Series(df['Patients'].values, index=df['Date'])
+
+# 1. ETS Model
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+ets_model = ExponentialSmoothing(ts_data, trend='add', seasonal='add', seasonal_periods=12).fit()
+ets_forecast = ets_model.forecast(36)
+
+# 2. ARIMA Model (Manually specified seasonal ARIMA)
+# Here we use SARIMAX (Seasonal ARIMA: (p,d,q)(P,D,Q,s))
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+arima_model = SARIMAX(ts_data, order=(1,1,1), seasonal_order=(1,1,1,12)).fit()
+arima_forecast = arima_model.forecast(36)
+
+# 3. Prophet Model
+from prophet import Prophet
+df_prophet = df.rename(columns={'Date': 'ds', 'Patients': 'y'})
+prophet_model = Prophet(yearly_seasonality=True)
+prophet_model.fit(df_prophet)
+future = prophet_model.make_future_dataframe(periods=36, freq='MS')
+forecast_prophet = prophet_model.predict(future)
+
+# Combine results into one DataFrame
+full_dates = pd.date_range(start="2020-01-01", periods=84, freq='MS')
+df_plot = pd.DataFrame({
+    'Date': full_dates,
+    'Actual': np.concatenate([df['Patients'].values, [np.nan]*36]),
+    'ETS': np.concatenate([[np.nan]*48, ets_forecast]),
+    'ARIMA': np.concatenate([[np.nan]*48, arima_forecast]),
+    'Prophet': forecast_prophet['yhat'].values
+})
+
+# Melt the dataframe for plotting
+df_long = df_plot.melt(id_vars='Date', var_name='Model', value_name='Patients')
+
+# Plotting the models
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df_long, x='Date', y='Patients', hue='Model', linewidth=2)
+plt.title("Model Comparison: Monthly Forecast of Patient Counts")
+plt.xlabel("Date")
+plt.ylabel("Number of Patients")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.legend(title='Model')
+plt.show()
+
+# 2. Estimate total Daily Billing Amount for Male and Female Cancer Patients for the next 3 years
+
+analysis_table = pd.read_csv(r"C:\Users\alreada\Desktop\El futuro\DATASETs\patients.csv")
+df = analysis_table
+
+# Filter for cancer patients and convert date
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df_cancer = df[df['Medical Condition'] == 'Cancer']
+
+# Group by Gender and Date, sum Billing
+billing_daily = df_cancer.groupby(['Gender', 'Date of Admission'])['Billing Amount'].sum().reset_index()
+
+# Prepare data for Prophet
+df_male = billing_daily[billing_daily['Gender'] == 'Male'].rename(columns={'Date of Admission': 'ds', 'Billing Amount': 'y'})
+df_female = billing_daily[billing_daily['Gender'] == 'Female'].rename(columns={'Date of Admission': 'ds', 'Billing Amount': 'y'})
+
+# Fit Prophet models
+model_male = Prophet(daily_seasonality=True)
+model_male.fit(df_male)
+
+model_female = Prophet(daily_seasonality=True)
+model_female.fit(df_female)
+
+# Forecast for 3 years (1095 days)
+future_male = model_male.make_future_dataframe(periods=1095)
+future_female = model_female.make_future_dataframe(periods=1095)
+
+forecast_male = model_male.predict(future_male)
+forecast_female = model_female.predict(future_female)
+
+# Add gender column for plotting
+forecast_male['Gender'] = 'Male'
+forecast_female['Gender'] = 'Female'
+
+# Combine results
+forecast_all = pd.concat([
+    forecast_male[['ds', 'yhat', 'Gender']],
+    forecast_female[['ds', 'yhat', 'Gender']]
+])
+
+# Plot
+plt.figure(figsize=(14, 6))
+sns.lineplot(data=forecast_all, x='ds', y='yhat', hue='Gender', palette={'Male': 'blue', 'Female': 'red'})
+plt.title('Forecast: Daily Billing Amounts for Cancer Patients (Next 3 Years)')
+plt.xlabel('Date')
+plt.ylabel('Predicted Total Billing')
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#  3. Estimate the average LOS of cancer patients per month stratified by males and Females
+
+# Ensure date columns are datetime
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Filter cancer patients only
+df_cancer = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Compute Length of Stay
+df_cancer['LOS'] = (df_cancer['Discharge Date'] - df_cancer['Date of Admission']).dt.days
+
+# Extract Year-Month
+df_cancer['YearMonth'] = df_cancer['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Compute monthly average LOS per gender
+monthly_avg_los = df_cancer.groupby(['YearMonth', 'Gender'])['LOS'].mean().reset_index()
+
+# Forecast per gender using Prophet
+dfs = {}
+for gender in ['Male', 'Female']:
+    data = monthly_avg_los[monthly_avg_los['Gender'] == gender][['YearMonth', 'LOS']].rename(columns={'YearMonth': 'ds', 'LOS': 'y'})
+    model = Prophet()
+    model.fit(data)
+    future = model.make_future_dataframe(periods=36, freq='MS')
+    forecast = model.predict(future)
+    dfs[gender] = forecast[['ds', 'yhat']].rename(columns={'yhat': 'Predicted_LOS'})
+    dfs[gender]['Gender'] = gender
+
+# Combine forecasts
+forecast_df = pd.concat(dfs.values())
+
+# Plot results
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=forecast_df, x='ds', y='Predicted_LOS', hue='Gender', palette={'Male': 'blue', 'Female': 'red'})
+plt.title('Forecasted Monthly Average LOS for Cancer Patients by Gender')
+plt.xlabel('Date')
+plt.ylabel('Average Length of Stay (days)')
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#  4. estimate the average length of stay (LOS) per month for cancer patients, stratified by age groups, and forecast it for the next 3 years.
+
+# Convert dates
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Calculate Length of Stay
+df['LOS'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+# Filter for cancer patients only
+df_cancer = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Create Age Groups
+df_cancer['Age Group'] = pd.cut(df_cancer['Age'], bins=[0, 20, 40, 60, 80, 120],
+                                 labels=['0-20', '21-40', '41-60', '61-80', '81+'])
+
+# Create Year-Month
+df_cancer['YearMonth'] = df_cancer['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Calculate monthly average LOS per age group
+monthly_avg_los = df_cancer.groupby(['YearMonth', 'Age Group'])['LOS'].mean().reset_index()
+
+# Forecast per age group
+future_preds = []
+
+for group in monthly_avg_los['Age Group'].unique():
+    df_group = monthly_avg_los[monthly_avg_los['Age Group'] == group][['YearMonth', 'LOS']]
+    df_group.columns = ['ds', 'y']
+    model = Prophet()
+    model.fit(df_group)
+    future = model.make_future_dataframe(periods=36, freq='M')
+    forecast = model.predict(future)
+    forecast['Age Group'] = group
+    future_preds.append(forecast[['ds', 'yhat', 'Age Group']])
+
+# Combine forecasts
+forecast_df = pd.concat(future_preds)
+forecast_df.rename(columns={'ds': 'Date', 'yhat': 'Predicted LOS'}, inplace=True)
+
+# Plot
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=forecast_df, x='Date', y='Predicted LOS', hue='Age Group', palette='tab10')
+plt.title("Forecast of Monthly Average Length of Stay by Age Group (Next 3 Years)")
+plt.ylabel("Average LOS (Days)")
+plt.xlabel("Date")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# STEP 6: Prescriptive Analysis
+
+analysis_table = pd.read_csv(r"C:\Users\alreada\Desktop\El futuro\DATASETs\patients.csv")
+df = analysis_table
+
+#  🔧 Problem 1: Optimal Doctor Allocation per Month
+
+#  Goal: Assign the right number of doctors to minimize patient wait times and optimize patient-to-doctor ratio.
+
+# Convert 'Date of Admission' to datetime
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'], errors='coerce')
+
+# Group by Year-Month and count the number of patients
+df['YearMonth'] = df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+monthly_patients = df.groupby('YearMonth').size().reset_index(name='Patient_Count')
+
+# Prescriptive: Assume ideal ratio is 15 patients per doctor
+monthly_patients['Required_Doctors'] = (monthly_patients['Patient_Count'] / 15).apply(np.ceil)
+
+# Show result
+print(monthly_patients)
+
+#  🔧 Problem 2: Recommend Discharge Policies for Reducing Length of Stay
+
+#  Goal: Identify which hospitals or conditions have high LOS and recommend optimized discharge planning.
+
+
+# Ensure both dates are datetime
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'], errors='coerce')
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'], errors='coerce')
+
+# Create LOS (Length of Stay) in days
+df['LOS'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+# Now group by hospital and medical condition
+avg_los = df.groupby(['Hospital', 'Medical Condition'])['LOS'].mean().reset_index()
+
+# Identify hospitals with high LOS (above 75th percentile)
+threshold = avg_los['LOS'].quantile(0.75)
+avg_los['High_LOS_Flag'] = avg_los['LOS'] > threshold
+
+# Show result
+print(avg_los)
+
+#  🔧 Problem 3: Optimize Cancer Ward Capacity
+
+#  Goal: Predict peak months and recommend minimum ward capacity to avoid overflow.
+
+# Filter cancer patients and group by month
+cancer_df = df[df['Medical Condition'] == 'Cancer']
+cancer_df['YearMonth'] = cancer_df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+monthly_cancer = cancer_df.groupby('YearMonth').size().reset_index(name='Cancer_Patients')
+
+# Recommend 20% buffer
+monthly_cancer['Recommended_Capacity'] = (monthly_cancer['Cancer_Patients'] * 1.2).apply(np.ceil)
+
+# Prescriptive Output
+print(monthly_cancer)
+
