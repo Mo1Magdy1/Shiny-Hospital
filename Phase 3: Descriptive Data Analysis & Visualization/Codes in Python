@@ -1,0 +1,567 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+
+# STEP 3: Analysis & Insights
+
+# Group by doctor to find number of patients and total bill
+top_doctors_by_patients = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], as_index=False)
+    .agg(Number_of_Patients_Treated=("Patient_First_Name", "count"),
+         total_Bill=("Billing Amount", "sum"))
+    .sort_values(by="Number_of_Patients_Treated", ascending=False)
+    .head(10)
+)
+
+print("Top 10 Doctors by Number of Patients Treated:")
+print(top_doctors_by_patients)
+
+top_doctors_by_bill = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], as_index=False)
+    .agg(Number_of_Patients_Treated=("Patient_First_Name", "count"),
+         total_Bill=("Billing Amount", "sum"))
+    .sort_values(by="total_Bill", ascending=False)
+    .head(10)
+)
+
+print("Top 10 Doctors by Total Billing Amount:")
+print(top_doctors_by_bill)
+
+# Correlation between number of patients and total bill
+correlation, p_value = pearsonr(
+    top_doctors_by_patients["Number_of_Patients_Treated"],
+    top_doctors_by_patients["total_Bill"]
+)
+
+print(f"Correlation: {correlation:.2f}, P-value: {p_value:.4f}")
+
+# Combine names for plotting
+top_doctors_by_patients["Doctor"] = top_doctors_by_patients["Doctor_First_Name"] + " " + top_doctors_by_patients["Doctor_Last_Name"]
+top_doctors_by_bill["Doctor"] = top_doctors_by_bill["Doctor_First_Name"] + " " + top_doctors_by_bill["Doctor_Last_Name"]
+
+# Plot 1: Top 10 Doctors by Number of Patients
+plt.figure(figsize=(10, 6))
+sns.barplot(data=top_doctors_by_patients, x="Doctor", y="Number_of_Patients_Treated", color="steelblue")
+plt.title("Top 10 Doctors by Number of Patients Treated")
+plt.xlabel("Doctor")
+plt.ylabel("Patients Treated")
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# Plot 2: Top 10 Doctors by Total Bill
+plt.figure(figsize=(10, 6))
+sns.barplot(data=top_doctors_by_bill, x="Doctor", y="total_Bill", color="darkgreen")
+plt.title("Top 10 Doctors by Total Billing Amount")
+plt.xlabel("Doctor")
+plt.ylabel("Total Bill")
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+# Plot 3: Correlation between Number of Patients and Total Bill
+plt.figure(figsize=(8, 6))
+sns.regplot(
+    data=top_doctors_by_patients,
+    x="Number_of_Patients_Treated",
+    y="total_Bill",
+    scatter_kws={"color": "purple", "s": 60},
+    line_kws={"color": "black"}
+)
+plt.title("Correlation Between Number of Patients and Total Bill")
+plt.xlabel("Patients Treated")
+plt.ylabel("Total Bill")
+plt.tight_layout()
+plt.show()
+
+# Create a new table for complex analysis with clean column names and rounded billing
+# Convert date columns to datetime
+analysis_table["Date of Admission"] = pd.to_datetime(analysis_table["Date of Admission"], errors='coerce')
+analysis_table["Discharge Date"] = pd.to_datetime(analysis_table["Discharge Date"], errors='coerce')
+
+# Start transforming the table
+analysis_table["Billing_Amount"] = analysis_table["Billing Amount"].round(2)
+
+# Admission date features
+analysis_table["Admission_Year"] = analysis_table["Date of Admission"].dt.year
+analysis_table["Admission_Month"] = analysis_table["Date of Admission"].dt.month
+analysis_table["Admission_Week"] = analysis_table["Date of Admission"].dt.isocalendar().week
+analysis_table["Admission_Day"] = analysis_table["Date of Admission"].dt.day
+analysis_table["Admission_WeekDay_Number"] = analysis_table["Date of Admission"].dt.weekday + 1
+analysis_table["Admission_WeekDay_Name"] = analysis_table["Date of Admission"].dt.day_name()
+
+# Discharge date features
+analysis_table["Discharge_Year"] = analysis_table["Discharge Date"].dt.year
+analysis_table["Discharge_Month"] = analysis_table["Discharge Date"].dt.month
+analysis_table["Discharge_Week"] = analysis_table["Discharge Date"].dt.isocalendar().week
+analysis_table["Discharge_Day"] = analysis_table["Discharge Date"].dt.day
+analysis_table["Discharge_WeekDay_Number"] = analysis_table["Discharge Date"].dt.weekday + 1
+analysis_table["Discharge_WeekDay_Name"] = analysis_table["Discharge Date"].dt.day_name()
+
+# Length of stay
+analysis_table["Length_of_Stay_in_Days"] = (analysis_table["Discharge Date"] - analysis_table["Date of Admission"]).dt.days
+analysis_table["Length_of_Stay_in_Months"] = (
+    (analysis_table["Discharge Date"].dt.to_period("M") - analysis_table["Date of Admission"].dt.to_period("M")).apply(lambda x: x.n)
+)
+
+# Gender binaries
+analysis_table["Male"] = (analysis_table["Gender"] == "Male").astype(int)
+analysis_table["Female"] = (analysis_table["Gender"] == "Female").astype(int)
+
+# Medical conditions
+conditions = ["Arthritis", "Asthma", "Cancer", "Diabetes", "Hypertension", "Obesity"]
+for cond in conditions:
+    analysis_table[cond] = (analysis_table["Medical Condition"] == cond).astype(int)
+
+# Age ranges
+def age_range(age):
+    if pd.isna(age): return np.nan
+    if age < 18: return "BELOW 18"
+    elif age < 30: return "BETWEEN 18 & 30"
+    elif age < 45: return "BETWEEN 30 & 45"
+    elif age < 60: return "BETWEEN 45 & 60"
+    else: return "Above 60"
+
+analysis_table["Age_Range"] = analysis_table["Age"].apply(age_range)
+analysis_table["Below_18"] = (analysis_table["Age"] < 18).astype(int)
+analysis_table["Between_18_30"] = ((analysis_table["Age"] >= 18) & (analysis_table["Age"] < 30)).astype(int)
+analysis_table["Between_30_45"] = ((analysis_table["Age"] >= 30) & (analysis_table["Age"] < 45)).astype(int)
+analysis_table["Between_45_60"] = ((analysis_table["Age"] >= 45) & (analysis_table["Age"] < 60)).astype(int)
+analysis_table["Above_60"] = (analysis_table["Age"] >= 60).astype(int)
+
+# Length of Stay categories
+def stay_cat(days):
+    if pd.isna(days): return np.nan
+    if days < 3: return "Below 3 Days"
+    elif days < 7: return "Between 3 & 7 Days"
+    elif days < 15: return "Between 7 & 15 Days"
+    else: return "Above 15 Days"
+
+analysis_table["Length_of_Stay_Category"] = analysis_table["Length_of_Stay_in_Days"].apply(stay_cat)
+analysis_table["Below_3_Days"] = (analysis_table["Length_of_Stay_in_Days"] < 3).astype(int)
+analysis_table["Between_3_7_Days"] = ((analysis_table["Length_of_Stay_in_Days"] >= 3) & (analysis_table["Length_of_Stay_in_Days"] < 7)).astype(int)
+analysis_table["Between_7_15_Days"] = ((analysis_table["Length_of_Stay_in_Days"] >= 7) & (analysis_table["Length_of_Stay_in_Days"] < 15)).astype(int)
+analysis_table["Above_15_Days"] = (analysis_table["Length_of_Stay_in_Days"] >= 15).astype(int)
+
+# Insurance provider columns
+providers = ["MedHealth", "SecureLife", "CarePlus", "LifeShield", "HealthFirst"]
+for provider in providers:
+    analysis_table[provider] = (analysis_table["Insurance Provider"] == provider).astype(int)
+
+# Medications
+medications = ["Amoxicillin", "Azithromycin", "Ibuprofen", "Lisinopril", "Metformin", "Omeprazole", "Simvastatin"]
+for med in medications:
+    analysis_table[med] = (analysis_table["Medication"] == med).astype(int)
+
+# Blood types
+blood_types = {
+    "A+": "A_Positive",
+    "B+": "B_Positive",
+    "AB+": "AB_Positive",
+    "O+": "O_Positive",
+    "A-": "A_Negative",
+    "B-": "B_Negative",
+    "AB-": "AB_Negative",
+    "O-": "O_Negative"
+}
+for bt, col in blood_types.items():
+    analysis_table[col] = (analysis_table["Blood Type"] == bt).astype(int)
+
+# Billing range categories
+def billing_range(amount):
+    if amount < 100: return "Below 100$"
+    elif amount < 1000: return "Between 100 & 1000$"
+    elif amount < 5000: return "Between 1000 & 5000$"
+    elif amount < 10000: return "Between 5000 & 10000$"
+    elif amount < 25000: return "Between 10000 & 25000$"
+    elif amount < 50000: return "Between 25000 & 50000$"
+    else: return "Above 50000$"
+
+analysis_table["Billing_Range"] = analysis_table["Billing Amount"].apply(billing_range)
+analysis_table["Below_100"] = (analysis_table["Billing Amount"] < 100).astype(int)
+analysis_table["Between_100_1000"] = ((analysis_table["Billing Amount"] >= 100) & (analysis_table["Billing Amount"] < 1000)).astype(int)
+analysis_table["Between_1000_5000"] = ((analysis_table["Billing Amount"] >= 1000) & (analysis_table["Billing Amount"] < 5000)).astype(int)
+analysis_table["Between_5000_10000"] = ((analysis_table["Billing Amount"] >= 5000) & (analysis_table["Billing Amount"] < 10000)).astype(int)
+analysis_table["Between_10000_25000"] = ((analysis_table["Billing Amount"] >= 10000) & (analysis_table["Billing Amount"] < 25000)).astype(int)
+analysis_table["Between_25000_50000"] = ((analysis_table["Billing Amount"] >= 25000) & (analysis_table["Billing Amount"] < 50000)).astype(int)
+analysis_table["Above_50000"] = (analysis_table["Billing Amount"] > 50000).astype(int)
+
+# Day of admission
+analysis_table["Day_of_Admission"] = analysis_table["Date of Admission"].dt.day_name()
+
+# Weekday dummies
+days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+for day in days:
+    analysis_table[day] = (analysis_table["Day_of_Admission"] == day).astype(int)
+
+analysis_table.head()
+
+# Calculating Percentages
+
+# Define a function to calculate percentage distribution for a specific column
+def calculate_percentage(df, column_name):
+    """
+    Calculates the percentage distribution for a specific column in a DataFrame.
+    """
+    summary = (
+        df[column_name]
+        .value_counts(dropna=False)
+        # Name the new column with the counts 'Total_Patients'
+        .reset_index(name="Total_Patients")
+        # Rename the 'index' column to the original column's name
+        .rename(columns={"index": column_name})
+    )
+    
+    
+    summary["Percentage"] = round((summary["Total_Patients"] / summary["Total_Patients"].sum()) * 100, 2)
+    
+    return summary.sort_values(by="Percentage", ascending=False).reset_index(drop=True)
+
+# Blood Type Percentages
+blood_type_percent = calculate_percentage(analysis_table, "Blood Type")
+
+# Gender Percentages
+gender_percent = calculate_percentage(analysis_table, "Gender")
+
+# Medical Condition Percentages
+medical_condition_percent = calculate_percentage(analysis_table, "Medical Condition")
+
+# Insurance Provider Percentages
+insurance_provider_percent = calculate_percentage(analysis_table, "Insurance Provider")
+
+# Admission Type Percentages
+admission_type_percent = calculate_percentage(analysis_table, "Admission Type")
+
+# Medication Percentages
+medication_percent = calculate_percentage(analysis_table, "Medication")
+
+# Display results
+print("Blood Type Percentages:")
+print(blood_type_percent)
+
+print("\nGender Percentages:")
+print(gender_percent)
+
+print("\nMedical Condition Percentages:")
+print(medical_condition_percent)
+
+print("\nInsurance Provider Percentages:")
+print(insurance_provider_percent)
+
+print("\nAdmission Type Percentages:")
+print(admission_type_percent)
+
+print("\nMedication Percentages:")
+print(medication_percent)
+
+# Most Billed Doctor based on AVG, MAX, SUM, and Number of patients
+top_doctors_all = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 0)),
+        Total_Billing_Amount=("Billing Amount", lambda x: round(x.sum(skipna=True), 0)),
+        Maximum_Billing_Amount=("Billing Amount", lambda x: round(x.max(skipna=True), 0)),
+        Number_of_Patients=("Billing Amount", "count")
+    )
+    .reset_index()
+    .sort_values(by="Average_Billing_Amount", ascending=False)
+    .head(10)
+)
+
+print("Top Doctors Overall (All Time):")
+print(top_doctors_all)
+
+# Most Billed Doctor in last 3 months
+max_date = analysis_table["Date of Admission"].max()
+date_threshold = max_date - relativedelta(months=3)
+
+filtered_last_3_months = analysis_table[analysis_table["Date of Admission"] >= date_threshold]
+
+top_doctors_3months = (
+    filtered_last_3_months
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 0)),
+        Total_Billing_Amount=("Billing Amount", lambda x: round(x.sum(skipna=True), 0)),
+        Maximum_Billing_Amount=("Billing Amount", lambda x: round(x.max(skipna=True), 0)),
+        Number_of_Patients=("Billing Amount", "count")
+    )
+    .reset_index()
+    .sort_values(by="Average_Billing_Amount", ascending=False)
+    .head(10)
+)
+
+print("\nTop Doctors in Last 3 Months:")
+print(top_doctors_3months)
+
+# Doctors Who Treated the Most Patients
+most_patients_doctors = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Number_of_Patients_Treated=("Billing Amount", "count"),
+        Average_Billing_Amount=("Billing Amount", "mean")
+    )
+    .reset_index()
+    .sort_values(by=["Number_of_Patients_Treated", "Average_Billing_Amount"], ascending=[False, False])
+    .head(10)
+)
+
+print("\nDoctors Who Treated the Most Patients:")
+print(most_patients_doctors)
+
+# 1. Doctors Who Treated the Most Patients in the Last 3 Months
+max_date = analysis_table["Date of Admission"].max()
+date_threshold = max_date - relativedelta(months=3)
+
+most_recent_doctors = (
+    analysis_table[analysis_table["Date of Admission"] >= date_threshold]
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(
+        Number_of_Patients_Treated=("Billing Amount", "count"),
+        Average_Billing_Amount=("Billing Amount", "mean")
+    )
+    .reset_index()
+    .sort_values(by=["Number_of_Patients_Treated", "Average_Billing_Amount"], ascending=[False, False])
+    .head(10)
+)
+
+print("Doctors Who Treated the Most Patients in the Last 3 Months:")
+print(most_recent_doctors)
+
+# 2. Hospitals That Treated the Most Patients
+most_patients_hospitals = (
+    analysis_table
+    .groupby("Hospital", dropna=False)
+    .agg(
+        Number_of_Patients_Treated=("Billing Amount", "count"),
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 2))
+    )
+    .reset_index()
+    .sort_values(by=["Number_of_Patients_Treated", "Average_Billing_Amount"], ascending=[False, False])
+    .head(10)
+)
+
+print("\nHospitals That Treated the Most Patients:")
+print(most_patients_hospitals)
+
+# 3. Most Billed Hospitals
+most_billed_hospitals = (
+    analysis_table
+    .groupby("Hospital", dropna=False)
+    .agg(
+        Average_Billing_Amount=("Billing Amount", lambda x: round(x.mean(skipna=True), 0)),
+        Total_Billing_Amount=("Billing Amount", lambda x: round(x.sum(skipna=True), 0)),
+        Maximum_Billing_Amount=("Billing Amount", lambda x: round(x.max(skipna=True), 0)),
+        Number_of_Patients=("Billing Amount", "count")
+    )
+    .reset_index()
+    .sort_values(by="Average_Billing_Amount", ascending=False)
+    .head(10)
+)
+
+print("\nMost Billed Hospitals:")
+print(most_billed_hospitals)
+
+# 4. Number of Doctors Who Treated More Than One Patient
+num_doctors_gt1_patient = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(Number_of_Patients=("Billing Amount", "count"))
+    .reset_index()
+    .query("Number_of_Patients > 1")
+    .shape[0]
+)
+
+print(f"\nNumber of Doctors Who Treated More Than One Patient: {num_doctors_gt1_patient}")
+
+
+# Percent of Doctors that treated more than 1 patients
+
+# Step 1: Count number of patients per doctor
+doctor_counts = (
+    analysis_table
+    .groupby(["Doctor_First_Name", "Doctor_Last_Name"], dropna=False)
+    .agg(Number_of_Patients=("Billing Amount", "count"))
+    .reset_index()
+)
+
+# Step 2: Count how many doctors treated >1 and exactly 1 patient
+more_than_one = doctor_counts[doctor_counts["Number_of_Patients"] > 1].shape[0]
+equal_one = doctor_counts[doctor_counts["Number_of_Patients"] == 1].shape[0]
+
+# Step 3: Calculate percentage
+total = more_than_one + equal_one
+percentage = round((more_than_one / total) * 100, 2) if total > 0 else 0
+
+# Prepare result dataframe
+import pandas as pd
+
+result = pd.DataFrame({
+    "Sum_more_than_1": [more_than_one],
+    "Sum_equal_1": [equal_one],
+    "Percentage": [percentage]
+})
+
+print("Doctors treating more than one patient:")
+print(result)
+
+# Extract Year and Month from Date of Admission
+billing_trends = (
+    analysis_table
+    .copy()
+    .assign(
+        Admission_Year = analysis_table["Date of Admission"].dt.year,
+        Admission_Month = analysis_table["Date of Admission"].dt.month
+    )
+    .groupby(["Admission_Year", "Admission_Month"], dropna=False)
+    .agg(
+        Total_Bill=("Billing Amount", lambda x: x.sum(skipna=True)),
+        Average_Bill=("Billing Amount", lambda x: x.mean(skipna=True)),
+        Maximum_Bill=("Billing Amount", lambda x: x.max(skipna=True)),
+        Minimum_Bill=("Billing Amount", lambda x: x.min(skipna=True))
+    )
+    .reset_index()
+    .sort_values(by="Total_Bill", ascending=False)
+)
+
+print("\nBilling Trends by Year and Month:")
+print(billing_trends)
+
+# Plotting the previous results 
+
+#Make sure that the date column exists and is properly formatted.
+
+billing_trends["Admission_Date"] = pd.to_datetime(
+    billing_trends["Admission_Year"].astype(str) + "-" + billing_trends["Admission_Month"].astype(str) + "-01"
+)
+
+# pilling amount per month
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=billing_trends, x="Admission_Date", y="Total_Bill", color="blue", linewidth=2)
+sns.scatterplot(data=billing_trends, x="Admission_Date", y="Total_Bill", color="red", s=60)
+
+plt.title("Total Billing Amount Trend by Month and Year")
+plt.xlabel("Admission Date (Year-Month)")
+plt.ylabel("Total Billing Amount")
+plt.xticks(rotation=45)
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+plt.tight_layout()
+plt.grid(True)
+plt.show()
+
+billing_by_month = (
+    analysis_table.copy()
+    .assign(Admission_Month = analysis_table["Date of Admission"].dt.month)
+    .groupby("Admission_Month", dropna=False)
+    .agg(
+        Total_Bill=("Billing Amount", "sum"),
+        Average_Bill=("Billing Amount", "mean"),
+        Maximum_Bill=("Billing Amount", "max"),
+        Minimum_Bill=("Billing Amount", "min")
+    )
+    .reset_index()
+    .sort_values(by="Total_Bill", ascending=False)
+)
+
+print("Billing by Month (All Years Combined):")
+print(billing_by_month)
+
+billing_by_year = (
+    analysis_table.copy()
+    .assign(Admission_Year = analysis_table["Date of Admission"].dt.year)
+    .groupby("Admission_Year", dropna=False)
+    .agg(
+        Total_Bill=("Billing Amount", "sum"),
+        Average_Bill=("Billing Amount", "mean"),
+        Maximum_Bill=("Billing Amount", "max"),
+        Minimum_Bill=("Billing Amount", "min")
+    )
+    .reset_index()
+    .sort_values(by="Total_Bill", ascending=False)
+)
+
+print("Billing by Year:")
+print(billing_by_year)
+
+df = analysis_table.copy()
+df["Year_Month"] = df["Date of Admission"].dt.strftime("%Y-%m")
+df["Admission_Year"] = df["Date of Admission"].dt.year
+
+# Number of patients per condition monthly
+patient_counts = (
+    df.groupby(["Year_Month", "Admission_Year", "Medical Condition"], dropna=False)
+    .size()
+    .reset_index(name="Patients_Per_Condition")
+)
+
+# Number of patients per condition yearly
+yearly_total = (
+    df.groupby(["Admission_Year", "Medical Condition"], dropna=False)
+    .size()
+    .reset_index(name="Total_Patients_In_Year")
+)
+
+# Join Tables
+joined = patient_counts.merge(yearly_total, on=["Admission_Year", "Medical Condition"], how="inner")
+
+# Order months
+joined["Month_Rank"] = (
+    joined.groupby("Medical Condition")["Patients_Per_Condition"]
+    .rank(method="first", ascending=False)
+)
+
+# Refine to top 3 months
+top_months = (
+    joined[joined["Month_Rank"] <= 3]
+    .assign(Percent=lambda x: round((x["Patients_Per_Condition"] * 100 / x["Total_Patients_In_Year"]), 2))
+)
+
+# Convert the table to wide format
+result = (
+    top_months
+    .pivot_table(index="Medical Condition", columns="Month_Rank", values=["Year_Month", "Patients_Per_Condition", "Percent"], aggfunc="first")
+)
+
+# Simplify column names
+result.columns = [f"{col[0]}{int(col[1])}" for col in result.columns]
+result = result.reset_index()
+
+print("Top 3 Months per Medical Condition:")
+print(result)
