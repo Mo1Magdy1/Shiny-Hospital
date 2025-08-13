@@ -1,0 +1,549 @@
+-- STEP 2: Data Cleaning & Processing
+-- Normalize patient name while handling single-word names
+SELECT TOP 10
+	[Name],
+	CASE 
+		WHEN CHARINDEX(' ', [Name]) > 0 
+		THEN UPPER(LEFT([Name], 1)) + LOWER(SUBSTRING([Name], 2, CHARINDEX(' ', [Name]) - 1)) 
+		ELSE UPPER(LEFT([Name], 1)) + LOWER(SUBSTRING([Name], 2, LEN([Name])))
+	END AS [Patient_First_Name],
+	CASE 
+		WHEN CHARINDEX(' ', [Name]) > 0 
+		THEN UPPER(LEFT(RIGHT([Name], LEN([Name]) - CHARINDEX(' ', [Name])), 1)) + 
+			 LOWER(SUBSTRING(RIGHT([Name], LEN([Name]) - CHARINDEX(' ', [Name])), 2, LEN([Name])))
+		ELSE NULL
+	END AS [Patient_Last_Name]
+FROM [HospitalData].[dbo].[admission];
+-- Normalize doctor name while handlin single-word names
+SELECT TOP 10
+	[Doctor],
+    	CASE 
+        	WHEN CHARINDEX(' ', [Doctor]) > 0 
+        	THEN UPPER(LEFT([Doctor], 1)) + LOWER(SUBSTRING([Doctor], 2, CHARINDEX(' ', [Doctor]) - 1)) 
+        	ELSE UPPER(LEFT([Doctor], 1)) + LOWER(SUBSTRING([Doctor], 2, LEN([Doctor])))
+    	END AS [Doctor_First_Name],
+    	CASE 
+        	WHEN CHARINDEX(' ', [Doctor]) > 0 
+        	THEN UPPER(LEFT(RIGHT([Doctor], LEN([Doctor]) - CHARINDEX(' ', [Doctor])), 1)) + 
+             	LOWER(SUBSTRING(RIGHT([Doctor], LEN([Doctor]) - CHARINDEX(' ', [Doctor])), 2, LEN([Doctor])))
+        	ELSE NULL  
+    	END AS [Doctor_Last_Name]
+FROM [HospitalData].[dbo].[admission];
+-- Finding Possible NULL Values
+SELECT
+	*
+FROM 
+	[HospitalData].[dbo].[admission]
+WHERE 
+	([Name] IS NULL OR TRIM([Name]) = '') 
+    	OR	([Doctor] IS NULL OR TRIM([Doctor]) = '') 
+    	OR	([Billing Amount] IS NULL OR [Billing Amount] = 0 OR TRIM(CAST([Billing Amount] AS nvarchar)) = '') 
+    	OR	([Admission Type] IS NULL OR TRIM([Admission Type]) = '') 
+    	OR	([Medical Condition] IS NULL OR TRIM([Medical Condition]) = '') 
+    	OR	([Age] IS NULL OR [Age] = 0 OR TRIM(CAST([Age] AS nvarchar)) = '') 
+    	OR	([Date of Admission] IS NULL OR TRIM(CAST([Date of Admission] AS nvarchar)) = '') 
+    	OR	([Hospital] IS NULL OR TRIM([Hospital]) = '') 
+    	OR	([Gender] IS NULL OR TRIM([Gender]) = '') 
+    	OR	([Blood Type] IS NULL OR TRIM([Blood Type]) = '') 
+    	OR	([Insurance Provider] IS NULL OR TRIM([Insurance Provider]) = '') 
+    	OR	([Room Number] IS NULL OR TRIM(CAST([Room Number] AS nvarchar)) = '') 
+    	OR	([Medication] IS NULL OR TRIM([Medication]) = '') 
+    	OR	([Discharge Date] IS NULL OR TRIM(CAST([Discharge Date] AS nvarchar)) = '') 
+    	OR	([Test Results] IS NULL OR TRIM([Test Results]) = '');
+-- Finding & Removing Duplicates
+-- Resulted in 5509 Records
+SELECT 
+	[Name],
+	[Date of Admission],
+	COUNT(*)
+FROM 
+	[HospitalData].[dbo].[admission]
+GROUP BY
+	[Name],
+	[Date of Admission]
+HAVING
+	COUNT(*) > 1;
+-- Finding & Removing Duplicates
+-- Resulted in 5500 Records, meaning that 9 patients got admmited to different hospitals on same date
+SELECT 
+	[Name],
+	[Date of Admission],
+	[Hospital],
+	COUNT(*)
+FROM 
+	[HospitalData].[dbo].[admission]
+GROUP BY
+	[Name],
+	[Date of Admission],
+	[Hospital]
+HAVING
+	COUNT(*) > 1;
+-- Adding Doctor Field
+SELECT 
+	[Name],
+	[Date of Admission],
+	[Hospital],
+	[Doctor],
+	COUNT(*)
+FROM 
+	[HospitalData].[dbo].[admission]
+GROUP BY
+	[Name],
+	[Date of Admission],
+	[Hospital],
+	[Doctor]
+HAVING
+	COUNT(*) > 1;
+-- Standarize gender
+SELECT
+	CASE 
+		WHEN LOWER([Gender]) in ('m', 'male', 'man', 'boy', 'men') 
+		Then 'Male' 
+		WHEN LOWER([Gender]) in ('f', 'female', 'woman', 'girl', 'women') 
+		Then 'Female' 
+	End as [Gender]
+FROM 
+	[HospitalData].[dbo].[admission];
+-- Standardize date
+SELECT TOP 10
+	[Date of Admission],
+	FORMAT( [Date of Admission] ,'yyyy-MM-dd HH:mm:ss') AS [Date_of_Admission],
+	[Discharge Date],
+	CONVERT(datetime, [Discharge Date], 103) AS [Discharge_Date]
+FROM 
+	[HospitalData].[dbo].[admission];
+-- Creating a NEW Table for Data Cleaning & Analysis 
+-- Removing Duplicates
+CREATE TABLE Analysis_Table (
+    	[Name] NVARCHAR(255),
+    	[Age] INT,
+    	[Gender] NVARCHAR(50),
+    	[Blood Type] NVARCHAR(10),
+    	[Medical Condition] NVARCHAR(255),
+    	[Date of Admission] DATE,
+    	[Doctor] NVARCHAR(255),
+    	[Hospital] NVARCHAR(255),
+    	[Insurance Provider] NVARCHAR(255),
+    	[Billing Amount] DECIMAL(18,2),
+    	[Room Number] NVARCHAR(50),
+    	[Admission Type] NVARCHAR(100),
+    	[Discharge Date] DATE,
+    	[Medication] NVARCHAR(MAX),
+    	[Test Results] NVARCHAR(MAX),
+	[Row_num] INT
+	);
+INSERT INTO Analysis_Table (
+	[Name],
+	[Age],
+	[Gender],
+	[Blood Type],
+	[Medical Condition],
+	[Date of Admission],
+	[Doctor],
+	[Hospital],
+	[Insurance Provider],
+	[Billing Amount],
+	[Room Number],
+	[Admission Type],
+	[Discharge Date],
+	[Medication],
+	[Test Results],
+	[Row_num]
+	)
+SELECT 
+	[Name],
+	[Age],
+	[Gender],
+	[Blood Type],
+	[Medical Condition],
+	[Date of Admission],
+	[Doctor],
+	[Hospital],
+	[Insurance Provider],
+	[Billing Amount],
+	[Room Number],
+	[Admission Type],
+	[Discharge Date],
+	[Medication],
+	[Test Results],
+	ROW_NUMBER () OVER (
+        	PARTITION BY [Name], [Date of Admission], [Hospital], [Doctor]
+        	ORDER BY (SELECT NULL)
+		)
+FROM 
+	[HospitalData].[dbo].[admission];
+-- Deleting Duplicates FROM Analysis_Table
+DELETE FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+WHERE 
+	Row_num > 1;
+-- Adding Patient's and Doctor's First & Last Names Columns
+ALTER TABLE 
+	[HospitalData].[dbo].[Analysis_Table] 
+ADD 
+	[Patient_First_Name] NVARCHAR(255), 
+	[Patient_Second_Name] NVARCHAR(255),
+	[Doctor_First_Name] NVARCHAR(255),
+	[Doctor_Second_Name] NVARCHAR(255);
+-- Standarize Patients' & Doctors' Names
+-- Standarize Dates
+UPDATE 
+	[HospitalData].[dbo].[analysis_table]
+SET 
+	[Patient_First_Name] = 
+		CASE 
+			WHEN CHARINDEX(' ', [Name]) > 0 
+			THEN UPPER(LEFT([Name], 1)) + LOWER(SUBSTRING([Name], 2, CHARINDEX(' ', [Name]) - 1)) 
+			ELSE UPPER(LEFT([Name], 1)) + LOWER(SUBSTRING([Name], 2, LEN([Name])))
+		END,
+
+	[Patient_Second_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', [Name]) > 0 
+            		THEN UPPER(LEFT(RIGHT([Name], LEN([Name]) - CHARINDEX(' ', [Name])), 1)) + 
+                 	LOWER(SUBSTRING(RIGHT([Name], LEN([Name]) - CHARINDEX(' ', [Name])), 2, LEN([Name])))
+            		ELSE NULL  -- No last name case
+	        END,
+
+	[Doctor_First_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', [Doctor]) > 0 
+            		THEN UPPER(LEFT([Doctor], 1)) + LOWER(SUBSTRING([Doctor], 2, CHARINDEX(' ', [Doctor]) - 1)) 
+            		ELSE UPPER(LEFT([Doctor], 1)) + LOWER(SUBSTRING([Doctor], 2, LEN([Doctor])))
+        	END,
+
+    	[Doctor_Second_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', [Doctor]) > 0 
+            		THEN UPPER(LEFT(RIGHT([Doctor], LEN([Doctor]) - CHARINDEX(' ', [Doctor])), 1)) + 
+                 	LOWER(SUBSTRING(RIGHT([Doctor], LEN([Doctor]) - CHARINDEX(' ', [Doctor])), 2, LEN([Doctor])))
+            		ELSE NULL  -- No last name case
+        	END,
+	[Date of Admission] = 	FORMAT( [Date of Admission] ,'yyyy-MM-dd HH:mm:ss'),
+	[Discharge Date]  =	CONVERT(datetime, [Discharge Date], 103);
+-- Drop Original Patients' & Doctors' Names
+ALTER TABLE 
+	[HospitalData].[dbo].[Analysis_Table]
+DROP COLUMN 
+	[Name],
+	[Doctor];
+-- Finding & Removing Titles from Patients' & Doctors' Names to avoid errors while aggregation
+SELECT 
+	* 
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+WHERE 
+	Patient_First_Name LIKE 'Dr.%'
+	OR Patient_First_Name LIKE 'Mr%'
+	OR Patient_First_Name LIKE 'Miss%';
+
+SELECT 
+	* 
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+WHERE 
+	Doctor_First_Name LIKE 'Dr.%'
+	OR Doctor_First_Name LIKE 'Mr%'
+	OR Doctor_First_Name LIKE 'Miss%';
+-- Update the Analysis_Table
+UPDATE 
+	[HospitalData].[dbo].[Analysis_Table]
+SET 
+	[Doctor_First_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', Doctor_Second_Name) > 0 
+            		THEN LEFT(Doctor_Second_Name, CHARINDEX(' ', Doctor_Second_Name) - 1)
+            		ELSE Doctor_Second_Name
+        	END,
+    
+    	[Doctor_Last_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', Doctor_Second_Name) > 0 
+            		THEN RIGHT(Doctor_Second_Name, LEN(Doctor_Second_Name) - CHARINDEX(' ', Doctor_Second_Name))
+            		ELSE NULL
+        	END
+WHERE 
+    	Doctor_First_Name LIKE 'Dr.%'
+    	OR Doctor_First_Name LIKE 'Mr.%'
+    	OR Doctor_First_Name LIKE 'Miss.%';
+UPDATE 
+	[HospitalData].[dbo].[Analysis_Table]
+SET 
+	[Patient_First_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', Doctor_Second_Name) > 0 
+            		THEN LEFT(Doctor_Second_Name, CHARINDEX(' ', Doctor_Second_Name) - 1)
+            		ELSE Doctor_Second_Name
+        	END,
+    
+    	[Patient_Last_Name] = 
+        	CASE 
+            		WHEN CHARINDEX(' ', Doctor_Second_Name) > 0 
+            		THEN RIGHT(Doctor_Second_Name, LEN(Doctor_Second_Name) - CHARINDEX(' ', Doctor_Second_Name))
+            		ELSE NULL
+        	END
+WHERE 
+    	Patient_First_Name LIKE 'Dr.%'
+    	OR Patient_First_Name LIKE 'Mr.%'
+    	OR Patient_First_Name LIKE 'Miss.%';
+-- Fixing mistakely entered Bills
+UPDATE 
+	[HospitalData].[dbo].[Analysis_Table]
+SET 
+	[Billing Amount] = [Billing Amount] * -1
+WHERE 
+	[Billing Amount] < 0;
+
+
+# New Table Structure after Cleaning and Wrangling for data analysis, Predictive Modelling, and Machine Learning
+
+SELECT 
+	
+	[Patient_First_Name] AS [Patient_First_Name],
+	[Patient_Last_Name] AS [Patient_Last_Name],
+	[Gender],
+	[Age],
+	[Date of Admission] AS [Date_of_Admission],
+	YEAR([Date of Admission]) AS [Admission_Year],
+	MONTH([Date of Admission]) AS [Admission_Month],
+	DATEPART(WEEK,[Date of Admission]) AS [Admission_Week],
+	DATEPART(DAY, [Date of Admission]) AS [Admission_Day],
+	DATEPART(WEEKDAY, [Date of Admission]) AS [Admission_WeekDay_Number],
+	DATENAME(WEEKDAY, [Date of Admission]) AS [Admission_WeekDay_Name],
+	[Discharge Date] AS [Discharge_Date],
+	YEAR([Discharge Date]) AS [Discharge_Year],
+	MONTH([Discharge Date]) AS [Discharge_Month],
+	DATEPART(WEEK,[Discharge Date]) AS [Discharge_Week],
+	DATEPART(DAY, [Discharge Date]) AS [Discharge_Day],
+	DATEPART(WEEKDAY, [Discharge Date]) AS [Discharge_WeekDay_Number],
+	DATENAME(WEEKDAY, [Discharge Date]) AS [Discharge_WeekDay_Name],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	DATEDIFF(MONTH, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Months],
+	[Medical Condition] AS [Medical_Condition],
+	[Medication],
+	ROUND([Billing Amount], 2) AS [Billing_Amount],
+	[Blood Type] AS [Blood_Type],
+	[Hospital],
+	[Insurance Provider] AS [Insurance_Provider],
+	[Admission Type] AS [Admission_Type],
+	[Test Results] AS [Test_Results],
+	[Doctor_First_Name] AS [Doctor First Name],
+	[Doctor_Last_Name] AS [Doctor_Last_Name],
+	[Room Number] AS [Room_Number],
+	CASE
+		WHEN [Gender] = 'Male' THEN 1 ELSE 0 End AS [Male],
+	CASE 
+		WHEN [Gender] = 'Female' THEN 1 ELSE 0 END AS [Female],
+	CASE
+		WHEN [Medical Condition] = 'Arthritis' THEN 1 ELSE 0 END AS [Arthritis],
+	CASE	
+		WHEN [Medical Condition] = 'Asthma' THEN 1 ELSE 0 END AS [Asthma],
+	CASE
+		WHEN [Medical Condition] = 'Cancer' THEN 1 ELSE 0 END AS [Cancer],
+	CASE
+		WHEN [Medical Condition] = 'Diabetes' THEN 1 ELSE 0 END AS [Diabetes],
+	CASE
+		WHEN [Medical Condition] = 'Hypertension' THEN 1 ELSE 0 END AS [Hypertension],
+	CASE
+		WHEN [Medical Condition] = 'Obesity' THEN 1 ELSE 0 END AS [Obesity],
+	CASE
+		WHEN [Age] < 18 THEN 'BELOW 18' 
+		WHEN [Age] < 30 THEN 'BETWEEN 18 & 30'
+		WHEN [Age] < 45 THEN 'BETWEEN 30 & 45'
+		WHEN [Age] < 60 THEN 'BETWEEN 45 & 60'
+		ELSE 'Above 60'
+	END AS [Age_Range],
+	CASE 
+		WHEN [Age] < 18 Then 1 ELSE 0 END AS [Below_18],
+	CASE 
+		WHEN [Age] >= 18 AND [Age] < 30 THEN 1 ELSE 0 END AS [Between_18_&_30],
+	CASE 
+		WHEN [Age] >= 30 AND [Age] < 45 THEN 1 ELSE 0 END AS [Between_30_&_45],
+	CASE 
+		WHEN [Age] >= 45 AND [Age] < 60 THEN 1 ELSE 0 END AS [Between_45_&_60],
+	CASE 
+		WHEN [Age] >= 60  Then 1 ELSE 0 END AS [Above_60],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 'Below 3 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 7 THEN 'Between 3 & 7 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 15 THEN 'Between 7 & 15 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) <= 30 THEN 'Above 15 Days'
+	END AS [Length_of_Stay_Category],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 1 ELSE 0 END AS [Below_3_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 3 AND 7  THEN 1 ELSE 0 END AS [Between_3_&_7_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 7 AND 15  THEN 1 ELSE 0 END AS [Between_7_&_15_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 15 AND 30  THEN 1 ELSE 0 END AS [Above_15_Days],
+	CASE 
+		WHEN [Insurance Provider] = 'Aetna' THEN 1 ELSE 0 END AS [Aetna],
+	CASE 
+		WHEN [Insurance Provider] = 'Blue Cross' THEN 1 ELSE 0 END AS [Blue_Cross],
+	CASE 
+		WHEN [Insurance Provider] = 'Cigna' THEN 1 ELSE 0 END AS [Cigna],
+	CASE 
+		WHEN [Insurance Provider] = 'Medicare' THEN 1 ELSE 0 END AS [Medicare],
+	CASE 
+		WHEN [Insurance Provider] = 'UnitedHealthcare' THEN 1 ELSE 0 END AS [UnitedHealthcare],
+	CASE 
+		WHEN [Medication] = 'Aspirin' THEN 1 ELSE 0 END AS [Aspirin],
+	CASE 
+		WHEN [Medication] = 'Ibuprofen' THEN 1 ELSE 0 END AS [Ibuprofen],
+	CASE 
+		WHEN [Medication] = 'Lipitor' THEN 1 ELSE 0 END AS [Lipitor],
+	CASE 
+		WHEN [Medication] = 'Paracetamol' THEN 1 ELSE 0 END AS [Paracetamol],
+	CASE 
+		WHEN [Medication] = 'Penicillin' THEN 1 ELSE 0 END AS [Penicillin],
+	CASE
+		WHEN [Admission Type] = 'Elective' THEN 1 ELSE 0 END AS [Elective_Admission],
+	CASE
+		WHEN [Admission Type] = 'Emergency' THEN 1 ELSE 0 END AS [Emergency_Admission],
+	CASE
+		WHEN [Admission Type] = 'Urgent' THEN 1 ELSE 0 END AS [Urgent_Admission],
+	CASE 
+		WHEN [Test Results] = 'Abnormal' THEN 1 ELSE 0 END AS [Abnormal_Test],
+	CASE 
+		WHEN [Test Results] = 'Inconclusive' THEN 1 ELSE 0 END AS [Inconclusive_Test],
+	CASE 
+		WHEN [Test Results] = 'Normal' THEN 1 ELSE 0 END AS [Normal_Test],
+	CASE
+		WHEN [Blood Type] = 'A+' THEN 1 ELSE 0 END AS [A+],
+	CASE
+		WHEN [Blood Type] = 'A-' THEN 1 ELSE 0 END AS [A-],
+	CASE
+		WHEN [Blood Type] = 'AB+' THEN 1 ELSE 0 END AS [AB+],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN '2019'
+		WHEN YEAR([Date of Admission]) = 2020 THEN '2020'
+		WHEN YEAR([Date of Admission]) = 2021 THEN '2021'
+		WHEN YEAR([Date of Admission]) = 2022 THEN '2022'
+		WHEN YEAR([Date of Admission]) = 2023 THEN '2023'
+		WHEN YEAR([Date of Admission]) = 2024 THEN '2024'
+		WHEN YEAR([Date of Admission]) = 2025 THEN '2025'
+	END AS [Year_of_Admission],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN 1 ELSE 0 END AS [2019],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2020 THEN 1 ELSE 0 END AS [2020],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2021 THEN 1 ELSE 0 END AS [2021],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2022 THEN 1 ELSE 0 END AS [2022],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2023 THEN 1 ELSE 0 END AS [2023],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2024 THEN 1 ELSE 0 END AS [2024],
+	CASE
+		WHEN MONTH([Date of Admission]) = 1 THEN 'January'
+		WHEN MONTH([Date of Admission]) = 2 THEN 'February'
+		WHEN MONTH([Date of Admission]) = 3 THEN 'March'
+		WHEN MONTH([Date of Admission]) = 4 THEN 'April'
+		WHEN MONTH([Date of Admission]) = 5 THEN 'May'
+		WHEN MONTH([Date of Admission]) = 6 THEN 'June'
+		WHEN MONTH([Date of Admission]) = 7 THEN 'July'
+		WHEN MONTH([Date of Admission]) = 8 THEN 'August'
+		WHEN MONTH([Date of Admission]) = 9 THEN 'September'
+		WHEN MONTH([Date of Admission]) = 10 THEN 'October'
+		WHEN MONTH([Date of Admission]) = 11 THEN 'November'
+		WHEN MONTH([Date of Admission]) = 12 THEN 'December'
+	END AS [Month_of_Admission],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 1 THEN 1 ELSE 0 END AS [January],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 2 THEN 1 ELSE 0 END AS [February],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 3 THEN 1 ELSE 0 END AS [March],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 4 THEN 1 ELSE 0 END AS [April],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 5 THEN 1 ELSE 0 END AS [May],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 6 THEN 1 ELSE 0 END AS [June],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 7 THEN 1 ELSE 0 END AS [July],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 8 THEN 1 ELSE 0 END AS [August],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 9 THEN 1 ELSE 0 END AS [September],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 10 THEN 1 ELSE 0 END AS [October],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 11 THEN 1 ELSE 0 END AS [November],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 12 THEN 1 ELSE 0 END AS [December],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (12,1,2) THEN 'WINTER'
+		WHEN MONTH([Date of Admission]) in (3,4,5) THEN 'Spring'
+		WHEN MONTH([Date of Admission]) in (6,7,8) THEN 'Summer'
+		WHEN MONTH([Date of Admission]) in (9,10,11) THEN 'Fall'
+	END AS [Season_of_Admission],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (12,1,2) THEN 1 ELSE 0 END AS [Winter],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (3,4,5) THEN 1 ELSE 0 END AS [Spring],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (6,7,8) THEN 1 ELSE 0 END AS [Summer],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (9,10,11) THEN 1 ELSE 0 END AS [Fall],
+	CASE
+		WHEN [Blood Type] = 'AB-' THEN 1 ELSE 0 END AS [AB-],
+	CASE
+		WHEN [Blood Type] = 'B+' THEN 1 ELSE 0 END AS [B+],
+	CASE
+		WHEN [Blood Type] = 'B-' THEN 1 ELSE 0 END AS [B-],
+	CASE
+		WHEN [Blood Type] = 'O+' THEN 1 ELSE 0 END AS [O+],
+	CASE
+		WHEN [Blood Type] = 'O-' THEN 1 ELSE 0 END AS [O-],
+	CASE
+		WHEN [Billing Amount] < 100 THEN 'Below 100$'
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 'Between 100 & 1000$'
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 'Between 1000 & 5000$'
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 'Between 5000 & 10000$'
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 'Between 10000 & 25000$'
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 'Between 25000 & 50000$'
+		WHEN [Billing Amount] > 50000 THEN 'Above 50000$'
+	END AS [Billing_Range],
+	CASE
+		WHEN [Billing Amount] < 100 THEN 1 ELSE 0 END AS [Below_100$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 1 ELSE 0 END AS [Between_100_&_1000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 1 ELSE 0 END AS [Between_1000_&_5000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 1 ELSE 0 END AS [Between_5000_&_10000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 1 ELSE 0 END AS [Between_10000_&_25000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 1 ELSE 0 END AS [Between_25000_&_50000$],
+	CASE
+		WHEN [Billing Amount] > 50000 THEN 1 ELSE 0 END AS [Above_50000$],
+	CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 'Monday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 'Tuesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 'Wednesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 'Thursday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 'Friday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 'Saturday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 'Sunday'
+	END AS [Day_of_Admission],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 1 ELSE 0 END AS [Monday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 1 ELSE 0 END AS [Teusday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 1 ELSE 0 END AS [Wednesday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 1 ELSE 0 END AS [Thrusday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 1 ELSE 0 END AS [Friday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 1 ELSE 0 END AS [Saturday],
+	CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 1 ELSE 0 END AS [Sunday] 
+
+FROM 
+	[HospitalData].[dbo].[Analysis_Table];
