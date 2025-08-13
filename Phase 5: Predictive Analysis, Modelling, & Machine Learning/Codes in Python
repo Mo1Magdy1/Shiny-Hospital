@@ -1,0 +1,305 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+# STEP 5: Predictive Analysis, Modelling, Machine Learning
+
+# 1. number of patients per medical condition in the next three years per month
+# Step 1: Convert 'Date of Admission' to datetime format
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+
+# Step 2: Create 'YearMonth' column
+df['YearMonth'] = df['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Step 3: Count patients per month per medical condition
+monthly_counts = df.groupby(['YearMonth', 'Medical Condition']).size().reset_index(name='Patient_Count')
+
+# Step 4: Pivot to wide format
+ts_data = monthly_counts.pivot(index='YearMonth', columns='Medical Condition', values='Patient_Count').fillna(0)
+
+# Step 5: Forecasting per medical condition
+forecast_horizon = 36  # 3 years (months)
+forecast_list = []
+
+for condition in ts_data.columns:
+    y = ts_data[condition]
+    
+    # Fit ETS model
+    model = ETSModel(y, error='add', trend='add', seasonal='add', seasonal_periods=12)
+    fit = model.fit()
+    
+    # Forecast next 36 months
+    forecast_index = pd.date_range(start=ts_data.index[-1] + relativedelta(months=1), periods=forecast_horizon, freq='MS')
+    forecast = fit.forecast(forecast_horizon)
+    
+    forecast_df = pd.DataFrame({
+        'Date': forecast_index,
+        'Condition': condition,
+        'Forecast': forecast.values
+    })
+    forecast_list.append(forecast_df)
+
+# Step 6: Combine all forecasts
+forecast_all = pd.concat(forecast_list, ignore_index=True)
+
+# Step 7: Plot
+plt.figure(figsize=(15, 6))
+sns.lineplot(data=forecast_all, x='Date', y='Forecast', hue='Condition')
+plt.title("Forecast: Monthly Patient Counts per Medical Condition (Next 3 Years)")
+plt.xlabel("Month")
+plt.ylabel("Predicted Patient Count")
+plt.xticks(rotation=45)
+plt.legend(title='Medical Condition')
+plt.tight_layout()
+plt.show()
+
+# Add perceptive commentary: growth rates, seasonality, anomalies
+
+# Calculate average growth rate per condition
+growth_insights = []
+
+for condition in ts_data.columns:
+    y = ts_data[condition]
+    if len(y) > 12:
+        recent = y[-12:].mean()
+        earlier = y[:12].mean()
+        growth = ((recent - earlier) / earlier) * 100 if earlier != 0 else None
+        growth_insights.append({
+            "Condition": condition,
+            "12M Growth (%)": round(growth, 1) if growth else "N/A"
+        })
+
+growth_df = pd.DataFrame(growth_insights)
+print("\n🧠 Growth Insight per Medical Condition:\n")
+print(growth_df.sort_values("12M Growth (%)", ascending=False))
+
+# Comparing the results of different three predictive models 
+
+
+# Set seed for reproducibility
+np.random.seed(42)
+
+# Create monthly sample data for 4 years
+dates = pd.date_range(start="2020-01-01", periods=48, freq='MS')
+patients = np.round(100 + 10 * np.sin(np.arange(48) * 2 * np.pi / 12) + np.random.normal(0, 5, 48))
+df = pd.DataFrame({'Date': dates, 'Patients': patients})
+
+# Convert to time series format
+ts_data = pd.Series(df['Patients'].values, index=df['Date'])
+
+# 1. ETS Model
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+ets_model = ExponentialSmoothing(ts_data, trend='add', seasonal='add', seasonal_periods=12).fit()
+ets_forecast = ets_model.forecast(36)
+
+# 2. ARIMA Model (Manually specified seasonal ARIMA)
+# Here we use SARIMAX (Seasonal ARIMA: (p,d,q)(P,D,Q,s))
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+arima_model = SARIMAX(ts_data, order=(1,1,1), seasonal_order=(1,1,1,12)).fit()
+arima_forecast = arima_model.forecast(36)
+
+# 3. Prophet Model
+from prophet import Prophet
+df_prophet = df.rename(columns={'Date': 'ds', 'Patients': 'y'})
+prophet_model = Prophet(yearly_seasonality=True)
+prophet_model.fit(df_prophet)
+future = prophet_model.make_future_dataframe(periods=36, freq='MS')
+forecast_prophet = prophet_model.predict(future)
+
+# Combine results into one DataFrame
+full_dates = pd.date_range(start="2020-01-01", periods=84, freq='MS')
+df_plot = pd.DataFrame({
+    'Date': full_dates,
+    'Actual': np.concatenate([df['Patients'].values, [np.nan]*36]),
+    'ETS': np.concatenate([[np.nan]*48, ets_forecast]),
+    'ARIMA': np.concatenate([[np.nan]*48, arima_forecast]),
+    'Prophet': forecast_prophet['yhat'].values
+})
+
+# Melt the dataframe for plotting
+df_long = df_plot.melt(id_vars='Date', var_name='Model', value_name='Patients')
+
+# Plotting the models
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df_long, x='Date', y='Patients', hue='Model', linewidth=2)
+plt.title("Model Comparison: Monthly Forecast of Patient Counts")
+plt.xlabel("Date")
+plt.ylabel("Number of Patients")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.legend(title='Model')
+plt.show()
+
+# 2. Estimate total Daily Billing Amount for Male and Female Cancer Patients for the next 3 years
+
+analysis_table = pd.read_csv(r"C:\Users\alreada\Desktop\El futuro\DATASETs\patients.csv")
+df = analysis_table
+
+# Filter for cancer patients and convert date
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df_cancer = df[df['Medical Condition'] == 'Cancer']
+
+# Group by Gender and Date, sum Billing
+billing_daily = df_cancer.groupby(['Gender', 'Date of Admission'])['Billing Amount'].sum().reset_index()
+
+# Prepare data for Prophet
+df_male = billing_daily[billing_daily['Gender'] == 'Male'].rename(columns={'Date of Admission': 'ds', 'Billing Amount': 'y'})
+df_female = billing_daily[billing_daily['Gender'] == 'Female'].rename(columns={'Date of Admission': 'ds', 'Billing Amount': 'y'})
+
+# Fit Prophet models
+model_male = Prophet(daily_seasonality=True)
+model_male.fit(df_male)
+
+model_female = Prophet(daily_seasonality=True)
+model_female.fit(df_female)
+
+# Forecast for 3 years (1095 days)
+future_male = model_male.make_future_dataframe(periods=1095)
+future_female = model_female.make_future_dataframe(periods=1095)
+
+forecast_male = model_male.predict(future_male)
+forecast_female = model_female.predict(future_female)
+
+# Add gender column for plotting
+forecast_male['Gender'] = 'Male'
+forecast_female['Gender'] = 'Female'
+
+# Combine results
+forecast_all = pd.concat([
+    forecast_male[['ds', 'yhat', 'Gender']],
+    forecast_female[['ds', 'yhat', 'Gender']]
+])
+
+# Plot
+plt.figure(figsize=(14, 6))
+sns.lineplot(data=forecast_all, x='ds', y='yhat', hue='Gender', palette={'Male': 'blue', 'Female': 'red'})
+plt.title('Forecast: Daily Billing Amounts for Cancer Patients (Next 3 Years)')
+plt.xlabel('Date')
+plt.ylabel('Predicted Total Billing')
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#  3. Estimate the average LOS of cancer patients per month stratified by males and Females
+
+# Ensure date columns are datetime
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Filter cancer patients only
+df_cancer = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Compute Length of Stay
+df_cancer['LOS'] = (df_cancer['Discharge Date'] - df_cancer['Date of Admission']).dt.days
+
+# Extract Year-Month
+df_cancer['YearMonth'] = df_cancer['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Compute monthly average LOS per gender
+monthly_avg_los = df_cancer.groupby(['YearMonth', 'Gender'])['LOS'].mean().reset_index()
+
+# Forecast per gender using Prophet
+dfs = {}
+for gender in ['Male', 'Female']:
+    data = monthly_avg_los[monthly_avg_los['Gender'] == gender][['YearMonth', 'LOS']].rename(columns={'YearMonth': 'ds', 'LOS': 'y'})
+    model = Prophet()
+    model.fit(data)
+    future = model.make_future_dataframe(periods=36, freq='MS')
+    forecast = model.predict(future)
+    dfs[gender] = forecast[['ds', 'yhat']].rename(columns={'yhat': 'Predicted_LOS'})
+    dfs[gender]['Gender'] = gender
+
+# Combine forecasts
+forecast_df = pd.concat(dfs.values())
+
+# Plot results
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=forecast_df, x='ds', y='Predicted_LOS', hue='Gender', palette={'Male': 'blue', 'Female': 'red'})
+plt.title('Forecasted Monthly Average LOS for Cancer Patients by Gender')
+plt.xlabel('Date')
+plt.ylabel('Average Length of Stay (days)')
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#  4. estimate the average length of stay (LOS) per month for cancer patients, stratified by age groups, and forecast it for the next 3 years.
+
+# Convert dates
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'])
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'])
+
+# Calculate Length of Stay
+df['LOS'] = (df['Discharge Date'] - df['Date of Admission']).dt.days
+
+# Filter for cancer patients only
+df_cancer = df[df['Medical Condition'].str.lower() == 'cancer'].copy()
+
+# Create Age Groups
+df_cancer['Age Group'] = pd.cut(df_cancer['Age'], bins=[0, 20, 40, 60, 80, 120],
+                                 labels=['0-20', '21-40', '41-60', '61-80', '81+'])
+
+# Create Year-Month
+df_cancer['YearMonth'] = df_cancer['Date of Admission'].dt.to_period('M').dt.to_timestamp()
+
+# Calculate monthly average LOS per age group
+monthly_avg_los = df_cancer.groupby(['YearMonth', 'Age Group'])['LOS'].mean().reset_index()
+
+# Forecast per age group
+future_preds = []
+
+for group in monthly_avg_los['Age Group'].unique():
+    df_group = monthly_avg_los[monthly_avg_los['Age Group'] == group][['YearMonth', 'LOS']]
+    df_group.columns = ['ds', 'y']
+    model = Prophet()
+    model.fit(df_group)
+    future = model.make_future_dataframe(periods=36, freq='M')
+    forecast = model.predict(future)
+    forecast['Age Group'] = group
+    future_preds.append(forecast[['ds', 'yhat', 'Age Group']])
+
+# Combine forecasts
+forecast_df = pd.concat(future_preds)
+forecast_df.rename(columns={'ds': 'Date', 'yhat': 'Predicted LOS'}, inplace=True)
+
+# Plot
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=forecast_df, x='Date', y='Predicted LOS', hue='Age Group', palette='tab10')
+plt.title("Forecast of Monthly Average Length of Stay by Age Group (Next 3 Years)")
+plt.ylabel("Average LOS (Days)")
+plt.xlabel("Date")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
