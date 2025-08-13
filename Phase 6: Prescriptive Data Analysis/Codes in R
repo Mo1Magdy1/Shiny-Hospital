@@ -1,0 +1,109 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gridExtra")
+install.packages("MASS")
+install.packages("nortest")
+install.packages("car")
+install.packages("ggpubr")
+install.packages("stats")
+install.packages("forcats")
+install.packages("ggthemes")
+install.packages("viridis")
+install.packages("vcd")
+install.packages("patchwork")
+install.packages("GGally")
+install.packages("ggcorrplot")
+install.packages("prophet")
+install.packages("forecast")
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gridExtra)
+library(MASS)
+library(nortest)
+library(car)
+library(stats)
+library(forcats)
+library(ggthemes)
+library(viridis)
+library(vcd)
+library(patchwork)
+library(GGally)
+library(ggcorrplot)
+library(prophet)
+library(forecast)
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/patients.xlsx")
+df <- admission_data
+
+#  🔧 Problem 1: Optimal Doctor Allocation per Month
+
+#  Goal: Assign the right number of doctors to minimize patient wait times and optimize patient-to-doctor ratio.
+
+# Group patients by month
+df$YearMonth <- floor_date(as.Date(df$`Date of Admission`), "month")
+monthly_counts <- df %>%
+  group_by(YearMonth) %>%
+  summarise(Patient_Count = n())
+
+# Assume ideal ratio: 15 patients per doctor
+monthly_counts <- monthly_counts %>%
+  mutate(Required_Doctors = ceiling(Patient_Count / 15))
+
+# View recommendations
+print(monthly_counts)
+
+
+#  🔧 Problem 2: Recommend Discharge Policies for Reducing Length of Stay
+
+#  Goal: Identify which hospitals or conditions have high LOS and recommend optimized discharge planning.
+
+
+# Ensure both dates are in Date format
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+df$`Discharge Date` <- as.Date(df$`Discharge Date`)
+
+# Create LOS (Length of Stay) in days
+df$LOS <- as.numeric(df$`Discharge Date` - df$`Date of Admission`)
+
+# Group by Hospital and Medical Condition and calculate average LOS
+avg_los <- df %>%
+  group_by(Hospital, `Medical Condition`) %>%
+  summarise(LOS = mean(LOS, na.rm = TRUE), .groups = 'drop')
+
+# Identify hospitals with high LOS (above 75th percentile)
+threshold <- quantile(avg_los$LOS, 0.75, na.rm = TRUE)
+avg_los <- avg_los %>%
+  mutate(High_LOS_Flag = LOS > threshold)
+
+# Show result
+print(avg_los)
+
+#  🔧 Problem 3: Optimize Cancer Ward Capacity
+
+#  Goal: Predict peak months and recommend minimum ward capacity to avoid overflow.
+
+# Cancer cases per month
+cancer_df <- df %>% filter(`Medical Condition` == "Cancer")
+cancer_df$YearMonth <- floor_date(as.Date(cancer_df$`Date of Admission`), "month")
+
+monthly_cancer <- cancer_df %>%
+  group_by(YearMonth) %>%
+  summarise(Cancer_Patients = n()) %>%
+  mutate(Recommended_Capacity = ceiling(Cancer_Patients * 1.2))
+
+# View recommended capacity
+print(monthly_cancer)
