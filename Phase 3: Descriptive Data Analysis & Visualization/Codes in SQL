@@ -1,0 +1,1726 @@
+-- STEP 3: Analysis & Insights
+-- Taking a look on current data
+SELECT 
+	[Age],
+      	[Gender],
+      	[Blood Type],
+      	[Medical Condition],
+      	[Date of Admission],
+      	[Doctor],
+      	[Hospital],
+      	[Insurance Provider],
+      	[Billing Amount],
+      	[Room Number],
+      	[Admission Type],
+      	[Discharge Date],
+      	[Medication],
+      	[Test Results],
+      	[Row_num],
+      	[Patient_First_Name],
+      	[Patient_Last_Name],
+      	[Doctor_First_Name],
+      	[Doctor_Last_Name],
+  FROM 
+	[HospitalData].[dbo].[Analysis_Table];
+-- Finding top 10 Doctor who treated most patients & Explore the correlation with total bill
+-- Finding top 10 Doctor who made highest bills & Explore the correlation with No. of patients treated
+SELECT TOP 10 
+	[Doctor_First_Name],
+	[Doctor_Last_Name],
+	COUNT(*) AS [Number_of_Patients_Treated],
+	SUM([Billing Amount]) AS [total_Bill]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY 
+	[Doctor_First_Name],
+	[Doctor_Last_Name]
+ORDER BY 	
+	COUNT(*) DESC;
+SELECT TOP 10 
+	[Doctor_First_Name],
+	[Doctor_Last_Name],
+	COUNT(*) AS [Number_of_Patients_Treated],
+	SUM([Billing Amount]) AS [total_Bill]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY 
+	[Doctor_First_Name],
+	[Doctor_Last_Name]
+ORDER BY 	
+	SUM([Billing Amount]) DESC;
+-- Designing a NEW Table for Complex Analysis, Insights, and Predictions
+SELECT 
+	
+	[Patient_First_Name] AS [Patient_First_Name],
+	[Patient_Last_Name] AS [Patient_Last_Name],
+	[Gender],
+	[Age],
+	[Date of Admission] AS [Date_of_Admission],
+	YEAR([Date of Admission]) AS [Admission_Year],
+	MONTH([Date of Admission]) AS [Admission_Month],
+	DATEPART(WEEK,[Date of Admission]) AS [Admission_Week],
+	DATEPART(DAY, [Date of Admission]) AS [Admission_Day],
+	DATEPART(WEEKDAY, [Date of Admission]) AS [Admission_WeekDay_Number],
+	DATENAME(WEEKDAY, [Date of Admission]) AS [Admission_WeekDay_Name],
+	[Discharge Date] AS [Discharge_Date],
+	YEAR([Discharge Date]) AS [Discharge_Year],
+	MONTH([Discharge Date]) AS [Discharge_Month],
+	DATEPART(WEEK,[Discharge Date]) AS [Discharge_Week],
+	DATEPART(DAY, [Discharge Date]) AS [Discharge_Day],
+	DATEPART(WEEKDAY, [Discharge Date]) AS [Discharge_WeekDay_Number],
+	DATENAME(WEEKDAY, [Discharge Date]) AS [Discharge_WeekDay_Name],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	DATEDIFF(MONTH, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Months],
+	[Medical Condition] AS [Medical_Condition],
+	[Medication],
+	ROUND([Billing Amount], 2) AS [Billing_Amount],
+	[Blood Type] AS [Blood_Type],
+	[Hospital],
+	[Insurance Provider] AS [Insurance_Provider],
+	[Admission Type] AS [Admission_Type],
+	[Test Results] AS [Test_Results],
+	[Doctor_First_Name] AS [Doctor First Name],
+	[Doctor_Last_Name] AS [Doctor_Last_Name],
+	[Room Number] AS [Room_Number],
+	CASE
+		WHEN [Gender] = 'Male' THEN 1 ELSE 0 End AS [Male],
+	CASE 
+		WHEN [Gender] = 'Female' THEN 1 ELSE 0 END AS [Female],
+	CASE
+		WHEN [Medical Condition] = 'Arthritis' THEN 1 ELSE 0 END AS [Arthritis],
+	CASE	
+		WHEN [Medical Condition] = 'Asthma' THEN 1 ELSE 0 END AS [Asthma],
+	CASE
+		WHEN [Medical Condition] = 'Cancer' THEN 1 ELSE 0 END AS [Cancer],
+	CASE
+		WHEN [Medical Condition] = 'Diabetes' THEN 1 ELSE 0 END AS [Diabetes],
+	CASE
+		WHEN [Medical Condition] = 'Hypertension' THEN 1 ELSE 0 END AS [Hypertension],
+	CASE
+		WHEN [Medical Condition] = 'Obesity' THEN 1 ELSE 0 END AS [Obesity],
+	CASE
+		WHEN [Age] < 18 THEN 'BELOW 18' 
+		WHEN [Age] < 30 THEN 'BETWEEN 18 & 30'
+		WHEN [Age] < 45 THEN 'BETWEEN 30 & 45'
+		WHEN [Age] < 60 THEN 'BETWEEN 45 & 60'
+		ELSE 'Above 60'
+	END AS [Age_Range],
+	CASE 
+		WHEN [Age] < 18 Then 1 ELSE 0 END AS [Below_18],
+	CASE 
+		WHEN [Age] >= 18 AND [Age] < 30 THEN 1 ELSE 0 END AS [Between_18_&_30],
+	CASE 
+		WHEN [Age] >= 30 AND [Age] < 45 THEN 1 ELSE 0 END AS [Between_30_&_45],
+	CASE 
+		WHEN [Age] >= 45 AND [Age] < 60 THEN 1 ELSE 0 END AS [Between_45_&_60],
+	CASE 
+		WHEN [Age] >= 60  Then 1 ELSE 0 END AS [Above_60],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 'Below 3 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 7 THEN 'Between 3 & 7 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 15 THEN 'Between 7 & 15 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) <= 30 THEN 'Above 15 Days'
+	END AS [Length_of_Stay_Category],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 1 ELSE 0 END AS [Below_3_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 3 AND 7  THEN 1 ELSE 0 END AS [Between_3_&_7_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 7 AND 15  THEN 1 ELSE 0 END AS [Between_7_&_15_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 15 AND 30  THEN 1 ELSE 0 END AS [Above_15_Days],
+	CASE 
+		WHEN [Insurance Provider] = 'Aetna' THEN 1 ELSE 0 END AS [Aetna],
+	CASE 
+		WHEN [Insurance Provider] = 'Blue Cross' THEN 1 ELSE 0 END AS [Blue_Cross],
+	CASE 
+		WHEN [Insurance Provider] = 'Cigna' THEN 1 ELSE 0 END AS [Cigna],
+	CASE 
+		WHEN [Insurance Provider] = 'Medicare' THEN 1 ELSE 0 END AS [Medicare],
+	CASE 
+		WHEN [Insurance Provider] = 'UnitedHealthcare' THEN 1 ELSE 0 END AS [UnitedHealthcare],
+	CASE 
+		WHEN [Medication] = 'Aspirin' THEN 1 ELSE 0 END AS [Aspirin],
+	CASE 
+		WHEN [Medication] = 'Ibuprofen' THEN 1 ELSE 0 END AS [Ibuprofen],
+	CASE 
+		WHEN [Medication] = 'Lipitor' THEN 1 ELSE 0 END AS [Lipitor],
+	CASE 
+		WHEN [Medication] = 'Paracetamol' THEN 1 ELSE 0 END AS [Paracetamol],
+	CASE 
+		WHEN [Medication] = 'Penicillin' THEN 1 ELSE 0 END AS [Penicillin],
+	CASE
+		WHEN [Admission Type] = 'Elective' THEN 1 ELSE 0 END AS [Elective_Admission],
+	CASE
+		WHEN [Admission Type] = 'Emergency' THEN 1 ELSE 0 END AS [Emergency_Admission],
+	CASE
+		WHEN [Admission Type] = 'Urgent' THEN 1 ELSE 0 END AS [Urgent_Admission],
+	CASE 
+		WHEN [Test Results] = 'Abnormal' THEN 1 ELSE 0 END AS [Abnormal_Test],
+	CASE 
+		WHEN [Test Results] = 'Inconclusive' THEN 1 ELSE 0 END AS [Inconclusive_Test],
+	CASE 
+		WHEN [Test Results] = 'Normal' THEN 1 ELSE 0 END AS [Normal_Test],
+	CASE
+		WHEN [Blood Type] = 'A+' THEN 1 ELSE 0 END AS [A+],
+	CASE
+		WHEN [Blood Type] = 'A-' THEN 1 ELSE 0 END AS [A-],
+	CASE
+		WHEN [Blood Type] = 'AB+' THEN 1 ELSE 0 END AS [AB+],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN '2019'
+		WHEN YEAR([Date of Admission]) = 2020 THEN '2020'
+		WHEN YEAR([Date of Admission]) = 2021 THEN '2021'
+		WHEN YEAR([Date of Admission]) = 2022 THEN '2022'
+		WHEN YEAR([Date of Admission]) = 2023 THEN '2023'
+		WHEN YEAR([Date of Admission]) = 2024 THEN '2024'
+		WHEN YEAR([Date of Admission]) = 2025 THEN '2025'
+	END AS [Year_of_Admission],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN 1 ELSE 0 END AS [2019],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2020 THEN 1 ELSE 0 END AS [2020],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2021 THEN 1 ELSE 0 END AS [2021],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2022 THEN 1 ELSE 0 END AS [2022],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2023 THEN 1 ELSE 0 END AS [2023],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2024 THEN 1 ELSE 0 END AS [2024],
+	CASE
+		WHEN MONTH([Date of Admission]) = 1 THEN 'January'
+		WHEN MONTH([Date of Admission]) = 2 THEN 'February'
+		WHEN MONTH([Date of Admission]) = 3 THEN 'March'
+		WHEN MONTH([Date of Admission]) = 4 THEN 'April'
+		WHEN MONTH([Date of Admission]) = 5 THEN 'May'
+		WHEN MONTH([Date of Admission]) = 6 THEN 'June'
+		WHEN MONTH([Date of Admission]) = 7 THEN 'July'
+		WHEN MONTH([Date of Admission]) = 8 THEN 'August'
+		WHEN MONTH([Date of Admission]) = 9 THEN 'September'
+		WHEN MONTH([Date of Admission]) = 10 THEN 'October'
+		WHEN MONTH([Date of Admission]) = 11 THEN 'November'
+		WHEN MONTH([Date of Admission]) = 12 THEN 'December'
+	END AS [Month_of_Admission],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 1 THEN 1 ELSE 0 END AS [January],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 2 THEN 1 ELSE 0 END AS [February],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 3 THEN 1 ELSE 0 END AS [March],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 4 THEN 1 ELSE 0 END AS [April],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 5 THEN 1 ELSE 0 END AS [May],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 6 THEN 1 ELSE 0 END AS [June],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 7 THEN 1 ELSE 0 END AS [July],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 8 THEN 1 ELSE 0 END AS [August],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 9 THEN 1 ELSE 0 END AS [September],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 10 THEN 1 ELSE 0 END AS [October],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 11 THEN 1 ELSE 0 END AS [November],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 12 THEN 1 ELSE 0 END AS [December],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (12,1,2) THEN 'WINTER'
+		WHEN MONTH([Date of Admission]) in (3,4,5) THEN 'Spring'
+		WHEN MONTH([Date of Admission]) in (6,7,8) THEN 'Summer'
+		WHEN MONTH([Date of Admission]) in (9,10,11) THEN 'Fall'
+	END AS [Season_of_Admission],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (12,1,2) THEN 1 ELSE 0 END AS [Winter],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (3,4,5) THEN 1 ELSE 0 END AS [Spring],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (6,7,8) THEN 1 ELSE 0 END AS [Summer],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (9,10,11) THEN 1 ELSE 0 END AS [Fall],
+	CASE
+		WHEN [Blood Type] = 'AB-' THEN 1 ELSE 0 END AS [AB-],
+	CASE
+		WHEN [Blood Type] = 'B+' THEN 1 ELSE 0 END AS [B+],
+	CASE
+		WHEN [Blood Type] = 'B-' THEN 1 ELSE 0 END AS [B-],
+	CASE
+		WHEN [Blood Type] = 'O+' THEN 1 ELSE 0 END AS [O+],
+	CASE
+		WHEN [Blood Type] = 'O-' THEN 1 ELSE 0 END AS [O-],
+	CASE
+		WHEN [Billing Amount] < 100 THEN 'Below 100$'
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 'Between 100 & 1000$'
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 'Between 1000 & 5000$'
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 'Between 5000 & 10000$'
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 'Between 10000 & 25000$'
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 'Between 25000 & 50000$'
+		WHEN [Billing Amount] > 50000 THEN 'Above 50000$'
+	END AS [Billing_Range],
+	CASE
+		WHEN [Billing Amount] < 100 THEN 1 ELSE 0 END AS [Below_100$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 1 ELSE 0 END AS [Between_100_&_1000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 1 ELSE 0 END AS [Between_1000_&_5000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 1 ELSE 0 END AS [Between_5000_&_10000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 1 ELSE 0 END AS [Between_10000_&_25000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 1 ELSE 0 END AS [Between_25000_&_50000$],
+	CASE
+		WHEN [Billing Amount] > 50000 THEN 1 ELSE 0 END AS [Above_50000$],
+	CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 'Monday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 'Tuesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 'Wednesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 'Thursday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 'Friday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 'Saturday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 'Sunday'
+	END AS [Day_of_Admission],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 1 ELSE 0 END AS [Monday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 1 ELSE 0 END AS [Teusday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 1 ELSE 0 END AS [Wednesday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 1 ELSE 0 END AS [Thrusday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 1 ELSE 0 END AS [Friday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 1 ELSE 0 END AS [Saturday],
+	CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 1 ELSE 0 END AS [Sunday] 
+
+FROM 
+	[HospitalData].[dbo].[Analysis_Table];
+-- Calculating Percents
+-- Blood Type Percents
+SELECT 
+    [Blood Type], 
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Blood_Type_Percentage]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY 
+	[Blood Type]
+ORDER BY 
+	[Blood_Type_Percentage] DESC;
+-- Gender Percents
+SELECT 
+    [Gender], 
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Gender_Percentage]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY 
+	[Gender]
+ORDER BY 
+	[Gender_Percentage] DESC;
+-- Medical Conditions Percents
+SELECT 
+    [Medical Condition],
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Medical_Condition_Percentage]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY  
+	[Medical Condition]
+ORDER BY 
+	[Medical_Condition_Percentage] DESC;
+-- Insurance Providers Percents
+SELECT 
+    [Insurance Provider],
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Insurance_Provider_Percentage]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY  
+	[Insurance Provider]
+ORDER BY 
+	[Insurance_Provider_Percentage] DESC;
+-- Admission Types Percents
+SELECT 
+    [Admission Type],
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Admission_Type_Percentage]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY  
+	[Admission Type]
+ORDER BY 
+	[Admission_Type_Percentage] DESC;
+-- Medications Percent
+SELECT 
+    [Medication],
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Medication_Percentage]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY  
+	[Medication]
+ORDER BY 
+	[Medication_Percentage] DESC;
+-- Most Billed Doctor Based on AVG, MAX, SUM, and Number of patients for billed amount
+SELECT TOP 10
+	[Doctor_First_name],
+	[Doctor_Last_Name],
+	ROUND(AVG([Billing Amount]),0) AS [Average_Billing_Amount],
+	ROUND(SUM([Billing Amount]),0) AS [Total_Billing_Amount],
+	ROUND(MAX([Billing Amount]),0) AS [Maximum_Billing_Amount],
+	COUNT(*) AS [Number_of_Patients]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY
+	[Doctor_First_name],
+	[Doctor_Last_Name]
+ORDER BY
+	AVG([Billing Amount]) DESC
+-- Most Billed Docter Based on AVG, MAX, SUM, and Number of patients for billed amount in last 3 month
+SELECT TOP 10
+	[Doctor_First_name],
+	[Doctor_Last_Name],
+	ROUND(AVG([Billing Amount]),0) AS [Average_Billing_Amount],
+	ROUND(SUM([Billing Amount]),0) AS [Total_Billing_Amount],
+	ROUND(MAX([Billing Amount]),0) AS [Maximum_Billing_Amount],
+	COUNT(*) AS [Number_of_Patients]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+WHERE 
+	 DATEDIFF(MONTH, [Date of Admission], (SELECT MAX([Date of Admission]) FROM analysis_table)) <= 3
+GROUP BY
+	[doctor_First_name],
+	[Doctor_Last_Name]
+ORDER BY
+	AVG([Billing Amount]) DESC
+-- Doctors that treated most number of  Patients
+SELECT TOP 10
+	[Doctor_First_Name],
+	[Doctor_Last_Name],
+	COUNT(*) AS [Number_of_Patients_Treated],
+	AVG([Billing Amount]) AS [Average_Billing_Amount]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY
+	[doctor_First_Name],
+	[Doctor_Last_Name]
+ORDER BY
+	[Number_of_Patients_Treated] DESC,
+	[Average_Billing_Amount] DESC
+-- Doctors that treated most number of  Patients in the Last 3 Months
+SELECT TOP 10
+	[Doctor_first_Name],
+	[Doctor_Second_Name],
+	COUNT(*) AS [Number_of_Patients_Treated],
+	AVG([Billing Amount]) AS [Average_Billing_Amount]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+WHERE
+	DATEDIFF(MONTH, [Date of Admission], (SELECT MAX([Date of Admission]) FROM analysis_table)) <= 3
+GROUP BY
+	[doctor_First_name],
+	[Doctor_Last_Name]
+ORDER BY
+	[Number_of_Patients_Treated] DESC,
+	[Average_Billing_Amount] DESC
+-- Hospital tha treated Most number of Patients 
+SELECT TOP 10
+	[Hospital],
+	COUNT(*) AS [Number_of_Patients_Treated],
+	ROUND(AVG([Billing Amount]),2) AS [Average_Billing_Amount]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY
+	[Hospital]
+ORDER BY
+	[Number_of_Patients_Treated] DESC,
+	[Average_Billing_Amount] DESC
+-- Most Billed Hospitals
+SELECT TOP 10
+	[Hospital],
+	ROUND(AVG([Billing Amount]),0) AS [Average_Billing_Amount],
+	ROUND(SUM([Billing Amount]),0) AS [Total_Billing_Amount],
+	ROUND(MAX([Billing Amount]),0) AS [Maximum_Billing_Amount],
+	COUNT(*) AS [Number_of_Patients]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY
+	[Hospital]
+ORDER BY
+	AVG([Billing Amount]) DESC;
+--Number of Doctors that treated more than 1 patients
+SELECT
+	COUNT(*)
+FROM
+	(
+SELECT 
+	[Doctor_First_Name],
+	[Doctor_Last_Name],
+	COUNT(*) AS [Number_of_Patients]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+GROUP BY
+	[Doctor_First_Name],
+	[Doctor_Last_Name]
+HAVING 
+	COUNT(*) > 1
+	) x;
+--Percent of Doctors that treated more than 1 patients
+WITH Tester_Doctor1 AS 
+	( 
+		SELECT 
+			[Doctor_First_Name],
+			[Doctor_Last_Name],
+			COUNT(*) AS [Number_of_Patients]
+		 FROM	
+			[HospitalData].[dbo].[Analysis_Table]
+	 	GROUP BY
+			[Doctor_First_Name],
+			[Doctor_Last_Name]
+	),	
+Tester_Doctor2 AS
+	( 	SELECT
+			CASE	
+		 	WHEN [Number_of_Patients] > 1 THEN [Number_of_Patients] 
+		 	END AS [More_than_one],
+			CASE 
+		 	WHEN [Number_of_Patients] = 1 THEN [Number_of_Patients]
+		 	END AS [Equal_one]
+	  	FROM
+			Tester_Doctor1
+	),
+Final_Calculation AS
+	(	SELECT 
+			COUNT([More_than_one]) AS [Sum_more_than_1],
+			COUNT([Equal_one]) AS [Sum_equal_1]
+	 	FROM
+			Tester_Doctor2	
+	)
+SELECT
+	[Sum_more_than_1], 
+	[Sum_equal_1],
+	ROUND([Sum_more_than_1] * 100.0 / NULLIF([Sum_more_than_1] + [Sum_equal_1], 0),2) AS [Percentage]
+FROM
+	Final_Calculation;
+-- Billing Based on Month & Year to find trends
+WITH Tester_Bill AS
+	(	SELECT
+			YEAR([Date of Admission]) AS [Admission_Year],
+			MONTH([Date of Admission]) AS [Admission_Month],
+			[Billing Amount],
+			[Medical Condition],
+			[Medication]
+		FROM
+			[HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT
+	[Admission_Year],
+	[Admission_Month],
+	SUM([Billing Amount]) AS [Total_Bill],
+	AVG([Billing Amount]) AS [Average_Bill],
+	MAX([Billing Amount]) AS [Maximum_Bill],
+	MIN([Billing Amount]) AS [Minimum_Bill]
+FROM 
+	Tester_Bill
+GROUP BY
+	[Admission_Year],
+	[Admission_Month]
+ORDER BY
+	[Total_Bill] DESC;
+-- Billing Based on Month  to find trends
+WITH Tester_Bill AS
+	(	SELECT
+			YEAR([Date of Admission]) AS [Admission_Year],
+			MONTH([Date of Admission]) AS [Admission_Month],
+			[Billing Amount],
+			[Medical Condition],
+			[Medication]
+	 	FROM
+			[HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT
+	[Admission_Month],
+	SUM([Billing Amount]) AS [Total_Bill],
+	AVG([Billing Amount]) AS [Average_Bill],
+	MAX([Billing Amount]) AS [Maximum_Bill],
+	MIN([Billing Amount]) AS [Minimum_Bill]
+FROM 
+	Tester_Bill
+GROUP BY
+	[Admission_Month]
+ORDER BY
+	[Total_Bill] DESC;
+-- Billing Based on  Year to find trends
+WITH Tester_Bill AS
+	(	SELECT
+			YEAR([Date of Admission]) AS [Admission_Year],
+			MONTH([Date of Admission]) AS [Admission_Month],
+			[Billing Amount],
+			[Medical Condition],
+			[Medication]
+	 	FROM
+			[HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT
+	[Admission_Year],
+	SUM([Billing Amount]) AS [Total_Bill],
+	AVG([Billing Amount]) AS [Average_Bill],
+	MAX([Billing Amount]) AS [Maximum_Bill],
+	MIN([Billing Amount]) AS [Minimum_Bill]
+FROM 
+	Tester_Bill
+GROUP BY
+	[Admission_Year]
+ORDER BY
+	[Total_Bill] DESC;
+-- Number of patients Based on Month & Year to find trends
+WITH Patient_Counts AS (
+    -- Count patients per month for each medical condition
+    SELECT 
+        FORMAT([Date of Admission], 'yyyy-MM') AS [Year_Month], 
+        YEAR([Date of Admission]) AS [Admission_Year],
+        [Medical Condition],
+        COUNT(*) AS [Patients_Per_Condition]
+    FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+    GROUP BY 
+	FORMAT([Date of Admission], 'yyyy-MM'), 
+	YEAR([Date of Admission]), 
+	[Medical Condition]
+),
+Yearly_Total AS (
+    -- Compute total patients per year per condition
+    SELECT 
+        YEAR([Date of Admission]) AS [Admission_Year],
+        [Medical Condition],
+        COUNT(*) AS [Total_Patients_In_Year]
+    FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+    GROUP BY 
+	YEAR([Date of Admission]), 
+	[Medical Condition]
+),
+Ranked_Patients AS (
+    -- Rank months per medical condition based on total patient count
+    SELECT 
+        pc.[Year_Month], 
+        pc.[Admission_Year],
+        pc.[Medical Condition],
+        pc.[Patients_Per_Condition],
+        yt.[Total_Patients_In_Year],
+        ROW_NUMBER() OVER (PARTITION BY pc.[Medical Condition] ORDER BY pc.[Patients_Per_Condition] DESC) AS [Month_Rank]
+    FROM 
+	Patient_Counts pc
+    JOIN 
+	Yearly_Total yt 
+        ON 
+	pc.[Medical Condition] = yt.[Medical Condition] 
+        AND 
+	pc.[Admission_Year] = yt.[Admission_Year]
+),
+Final_Data AS (
+    -- Ensure top 3 months are in separate columns per medical condition
+    SELECT 
+        rp.[Medical Condition],  
+        -- First top month
+        MAX(CASE WHEN Month_Rank = 1 THEN rp.[Year_Month] END) AS [Top_Month1],
+        MAX(CASE WHEN Month_Rank = 1 THEN rp.[Patients_Per_Condition] END) AS [Patients1],
+        MAX(CASE WHEN Month_Rank = 1 THEN ROUND(CAST(rp.[Patients_Per_Condition] AS FLOAT) * 100.0 / NULLIF(rp.[Total_Patients_In_Year], 0), 2) END) AS [Percent1],
+        -- Second top month
+        MAX(CASE WHEN Month_Rank = 2 THEN rp.[Year_Month] END) AS [Top_Month2],
+        MAX(CASE WHEN Month_Rank = 2 THEN rp.[Patients_Per_Condition] END) AS [Patients2],
+        MAX(CASE WHEN Month_Rank = 2 THEN ROUND(CAST(rp.[Patients_Per_Condition] AS FLOAT) * 100.0 / NULLIF(rp.[Total_Patients_In_Year], 0), 2) END) AS [Percent2],
+        -- Third top month
+        MAX(CASE WHEN Month_Rank = 3 THEN rp.[Year_Month] END) AS [Top_Month3],
+        MAX(CASE WHEN Month_Rank = 3 THEN rp.[Patients_Per_Condition] END) AS [Patients3],
+        MAX(CASE WHEN Month_Rank = 3 THEN ROUND(CAST(rp.[Patients_Per_Condition] AS FLOAT) * 100.0 / NULLIF(rp.[Total_Patients_In_Year], 0), 2) END) AS [Percent3]
+    FROM 
+	Ranked_Patients rp
+    GROUP BY 
+	rp.[Medical Condition]
+)
+SELECT 
+    [Medical Condition], 
+    [Top_Month1], [Patients1], [Percent1],
+    [Top_Month2], [Patients2], [Percent2],
+    [Top_Month3], [Patients3], [Percent3]
+FROM 
+	Final_Data
+ORDER BY 
+	[Medical Condition];
+-- Calculating the number of patients and percentage for each category of Lenth of Stay
+WITH TESTER1_Length AS (
+SELECT 
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 'Below 3 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 7 THEN 'Between 3 & 7 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 15 THEN 'Between 7 & 15 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) <= 30 THEN 'Above 15 Days'
+	END AS [Length_of_Stay_Category]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+)
+SELECT [Length_of_Stay_Category],
+	COUNT(*) AS [Number_of_patients],
+	COUNT(*) * 100 / SUM(COUNT(*)) OVER () AS [Percentage]
+FROM 
+	TESTER1_Length
+GROUP BY 
+	[Length_of_Stay_Category]
+ORDER BY 
+	[Percentage];
+-- Calculating the number of patients and percentage for each year
+WITH TESTER2_Year AS
+	(SELECT
+		CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN '2019'
+		WHEN YEAR([Date of Admission]) = 2020 THEN '2020'
+		WHEN YEAR([Date of Admission]) = 2021 THEN '2021'
+		WHEN YEAR([Date of Admission]) = 2022 THEN '2022'
+		WHEN YEAR([Date of Admission]) = 2023 THEN '2023'
+		WHEN YEAR([Date of Admission]) = 2024 THEN '2024'
+		WHEN YEAR([Date of Admission]) = 2025 THEN '2025'
+		END AS [Year_of_Admission]
+	FROM [HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT 
+	[Year_of_Admission],
+	COUNT (*) AS [Total_Patients],
+	CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Year_of_Admission_Percentage] 
+FROM 
+	TESTER2_Year
+GROUP BY 
+	[Year_of_Admission]
+ORDER BY 
+	[Year_of_Admission_Percentage] DESC;
+-- Calculating the number and percentage of patient admission per day
+WITH Tester3_Day AS 
+	( SELECT 
+		CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 'Monday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 'Tuesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 'Wednesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 'Thursday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 'Friday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 'Saturday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 'Sunday'
+		END AS [Day_of_Admission]
+	 FROM [HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT 
+    [Day_of_Admission],
+    COUNT(*) AS [Total_Patients],
+    CAST((COUNT(*) * 100.0) / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Day_of_Admission_Percentage]
+FROM 
+	Tester3_Day
+GROUP BY  
+	[Day_of_Admission]
+ORDER BY 
+	[Day_of_Admission_Percentage] DESC;
+-- Calculating the number and percentage of patient admission per Season
+WITH Tester4_Season AS
+	( SELECT	
+		CASE 
+			WHEN MONTH([Date of Admission]) in (12,1,2) THEN 'WINTER'
+			WHEN MONTH([Date of Admission]) in (3,4,5) THEN 'Spring'
+			WHEN MONTH([Date of Admission]) in (6,7,8) THEN 'Summer'
+			WHEN MONTH([Date of Admission]) in (9,10,11) THEN 'Fall'
+		END AS [Season]
+	 FROM [HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT
+	[Season],
+	COUNT(*) as [Total_Patients],
+	CAST(COUNT(*) * 100.0/ SUM(COUNT(*)) OVER () AS DECIMAL(10,2))AS [Season_Percentage]
+FROM 
+	Tester4_Season
+GROUP by 
+	[Season]
+ORDER by 
+	[Season_Percentage];
+-- Calculating the number and percentage of patient admission per Month
+WITH Tester5_Month AS
+	( SELECT
+		CASE
+		WHEN MONTH([Date of Admission]) = 1 THEN 'January'
+		WHEN MONTH([Date of Admission]) = 2 THEN 'February'
+		WHEN MONTH([Date of Admission]) = 3 THEN 'March'
+		WHEN MONTH([Date of Admission]) = 4 THEN 'April'
+		WHEN MONTH([Date of Admission]) = 5 THEN 'May'
+		WHEN MONTH([Date of Admission]) = 6 THEN 'June'
+		WHEN MONTH([Date of Admission]) = 7 THEN 'July'
+		WHEN MONTH([Date of Admission]) = 8 THEN 'August'
+		WHEN MONTH([Date of Admission]) = 9 THEN 'September'
+		WHEN MONTH([Date of Admission]) = 10 THEN 'October'
+		WHEN MONTH([Date of Admission]) = 11 THEN 'November'
+		WHEN MONTH([Date of Admission]) = 12 THEN 'December'
+		END AS [Month_of_Admission]
+	  FROM [HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT 
+	[Month_of_Admission],
+	COUNT(*) AS [Total_Patients],
+	CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS DECIMAL(10,2))AS [Month_of_Admission_Percentage]
+FROM 
+	Tester5_Month
+GROUP BY 
+	[Month_of_Admission]
+ORDER BY 
+	[Month_of_Admission_Percentage] DESC; 
+-- Calculating the number and percentage of patient admission per predefined Billing Category
+WITH TESTER6_Bill AS 
+	(SELECT
+		CASE
+		WHEN [Billing Amount] < 100 THEN 'Below 100$'
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 'Between 100 & 1000$'
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 'Between 1000 & 5000$'
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 'Between 5000 & 10000$'
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 'Between 10000 & 25000$'
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 'Between 25000 & 50000$'
+		WHEN [Billing Amount] > 50000 THEN 'Above 50000$'
+		END AS [Billing_Range]
+	 FROM [HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT
+	[Billing_Range],
+	COUNT(*) AS [Total_Patients],
+	CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS DECIMAL(10,2))AS [Billing_Range_Percentage]
+FROM 
+	TESTER6_Bill
+GROUP BY 
+	[Billing_Range]
+ORDER BY 
+	[Billing_Range_Percentage] DESC;
+-- Calculating the number and percentage of patient admission per Month
+WITH Tester7_Year_Month AS
+	( SELECT
+		CASE
+			WHEN YEAR([Date of Admission]) = 2019 THEN '2019'
+			WHEN YEAR([Date of Admission]) = 2020 THEN '2020'
+			WHEN YEAR([Date of Admission]) = 2021 THEN '2021'
+			WHEN YEAR([Date of Admission]) = 2022 THEN '2022'
+			WHEN YEAR([Date of Admission]) = 2023 THEN '2023'
+			WHEN YEAR([Date of Admission]) = 2024 THEN '2024'
+			WHEN YEAR([Date of Admission]) = 2025 THEN '2025'
+		END AS [Year_of_Admission],
+		CASE
+			WHEN MONTH([Date of Admission]) = 1 THEN 'January'
+			WHEN MONTH([Date of Admission]) = 2 THEN 'February'
+			WHEN MONTH([Date of Admission]) = 3 THEN 'March'
+			WHEN MONTH([Date of Admission]) = 4 THEN 'April'
+			WHEN MONTH([Date of Admission]) = 5 THEN 'May'
+			WHEN MONTH([Date of Admission]) = 6 THEN 'June'
+			WHEN MONTH([Date of Admission]) = 7 THEN 'July'
+			WHEN MONTH([Date of Admission]) = 8 THEN 'August'
+			WHEN MONTH([Date of Admission]) = 9 THEN 'September'
+			WHEN MONTH([Date of Admission]) = 10 THEN 'October'
+			WHEN MONTH([Date of Admission]) = 11 THEN 'November'
+			WHEN MONTH([Date of Admission]) = 12 THEN 'December'
+		END AS [Month_of_Admission],
+		CASE
+			WHEN MONTH([Date of Admission]) = 1 THEN '01'
+			WHEN MONTH([Date of Admission]) = 2 THEN '02'
+			WHEN MONTH([Date of Admission]) = 3 THEN '03'
+			WHEN MONTH([Date of Admission]) = 4 THEN '04'
+			WHEN MONTH([Date of Admission]) = 5 THEN '05'
+			WHEN MONTH([Date of Admission]) = 6 THEN '06'
+			WHEN MONTH([Date of Admission]) = 7 THEN '07'
+			WHEN MONTH([Date of Admission]) = 8 THEN '08'
+			WHEN MONTH([Date of Admission]) = 9 THEN '09'
+			WHEN MONTH([Date of Admission]) = 10 THEN '10'
+			WHEN MONTH([Date of Admission]) = 11 THEN '11'
+			WHEN MONTH([Date of Admission]) = 12 THEN '12'
+		END AS [Month_of_Admission_Num]
+	  FROM [HospitalData].[dbo].[Analysis_Table]
+	)
+SELECT
+	[Year_of_Admission],
+	[Month_of_Admission],
+	[Month_of_Admission_Num],
+	COUNT(*) AS [Total_Patients],
+	CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS DECIMAL(10,2)) AS [Percentage_of_Total],
+	CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (PARTITION BY [Year_of_Admission]) AS DECIMAL(10,2)) AS [Percentage_of_year]
+FROM 
+	Tester7_Year_Month
+GROUP BY 
+	[Year_of_Admission],
+	[Month_of_Admission],
+	[Month_of_Admission_Num]
+ORDER BY
+	[Year_of_Admission] DESC,
+	[Month_of_Admission_Num] ASC;
+-- Calculate Insights per Medical Condition
+WITH Analysis_CTE AS 
+(	
+SELECT 
+	[Gender],
+	[Age],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length of Stay in Days],
+	[Medical Condition],
+	[Medication],
+	ROUND([Billing Amount], 2) AS [Billing Amount],
+	[Blood Type],
+	[Insurance Provider],
+	[Admission Type],
+	[Test Results],
+	CASE
+		WHEN [Gender] = 'Male' THEN 1 ELSE 0 End AS [Male],
+	CASE 
+		WHEN [Gender] = 'Female' THEN 1 ELSE 0 END AS [Female],
+	CASE
+		WHEN [Medical Condition] = 'Arthritis' THEN 1 ELSE 0 END AS [Arthritis],
+	CASE	
+		WHEN [Medical Condition] = 'Asthma' THEN 1 ELSE 0 END AS [Asthma],
+	CASE
+		WHEN [Medical Condition] = 'Cancer' THEN 1 ELSE 0 END AS [Cancer],
+	CASE
+		WHEN [Medical Condition] = 'Diabetes' THEN 1 ELSE 0 END AS [Diabetes],
+	CASE
+		WHEN [Medical Condition] = 'Hypertension' THEN 1 ELSE 0 END AS [Hypertension],
+	CASE
+		WHEN [Medical Condition] = 'Obesity' THEN 1 ELSE 0 END AS [Obesity],
+	CASE 
+		WHEN [Insurance Provider] = 'Aetna' THEN 1 ELSE 0 END AS [Aetna],
+	CASE 
+		WHEN [Insurance Provider] = 'Blue Cross' THEN 1 ELSE 0 END AS [Blue Cross],
+	CASE 
+		WHEN [Insurance Provider] = 'Cigna' THEN 1 ELSE 0 END AS [Cigna],
+	CASE 
+		WHEN [Insurance Provider] = 'Medicare' THEN 1 ELSE 0 END AS [Medicare],
+	CASE 
+		WHEN [Insurance Provider] = 'UnitedHealthcare' THEN 1 ELSE 0 END AS [UnitedHealthcare],
+	CASE 
+		WHEN [Medication] = 'Aspirin' THEN 1 ELSE 0 END AS [Aspirin],
+	CASE 
+		WHEN [Medication] = 'Ibuprofen' THEN 1 ELSE 0 END AS [Ibuprofen],
+	CASE 
+		WHEN [Medication] = 'Lipitor' THEN 1 ELSE 0 END AS [Lipitor],
+	CASE 
+		WHEN [Medication] = 'Paracetamol' THEN 1 ELSE 0 END AS [Paracetamol],
+	CASE 
+		WHEN [Medication] = 'Penicillin' THEN 1 ELSE 0 END AS [Penicillin],
+	CASE
+		WHEN [Admission Type] = 'Elective' THEN 1 ELSE 0 END AS [Elective Admission],
+	CASE
+		WHEN [Admission Type] = 'Emergency' THEN 1 ELSE 0 END AS [Emergency Admission],
+	CASE
+		WHEN [Admission Type] = 'Urgent' THEN 1 ELSE 0 END AS [Urgent Admission],
+	CASE 
+		WHEN [Test Results] = 'Abnormal' THEN 1 ELSE 0 END AS [Abnormal Test],
+	CASE 
+		WHEN [Test Results] = 'Inconclusive' THEN 1 ELSE 0 END AS [Inconclusive Test],
+	CASE 
+		WHEN [Test Results] = 'Normal' THEN 1 ELSE 0 END AS [Normal Test],
+	CASE
+		WHEN [Blood Type] = 'A+' THEN 1 ELSE 0 END AS [A+],
+	CASE
+		WHEN [Blood Type] = 'A-' THEN 1 ELSE 0 END AS [A-],
+	CASE
+		WHEN [Blood Type] = 'AB+' THEN 1 ELSE 0 END AS [AB+],
+	CASE
+		WHEN [Blood Type] = 'AB-' THEN 1 ELSE 0 END AS [AB-],
+	CASE
+		WHEN [Blood Type] = 'B+' THEN 1 ELSE 0 END AS [B+],
+	CASE
+		WHEN [Blood Type] = 'B-' THEN 1 ELSE 0 END AS [B-],
+	CASE
+		WHEN [Blood Type] = 'O+' THEN 1 ELSE 0 END AS [O+],
+	CASE
+		WHEN [Blood Type] = 'O-' THEN 1 ELSE 0 END AS [O-]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+),
+Tester1A AS
+	(
+		SELECT 
+			[Medical Condition],
+			SUM([Billing Amount]) AS [Total Bill per Condition],
+			AVG([Billing Amount]) AS [Average Bill per Condition],
+			MAX([Billing Amount]) AS [Maximum Bill per Condition],
+			MIN([Billing Amount]) AS [Minimum Bill per Condition],
+			AVG([Length of Stay in Days]) AS [Average Days of Stay per Condition],
+			MAX([Length of Stay in Days]) AS [Maximum Days of Stay per Condition],
+			MIN([Length of Stay in Days]) AS [Minimum Days of Stay per Condition],
+			COUNT(*) AS [Number of Patients],
+			AVG([Age]) AS [Average Age per Condition],
+			MAX([Age]) AS [Maximum Age per Condition],
+			MIN([Age]) AS [Minimum Age per Condition]
+
+		FROM 
+			Analysis_CTE
+
+		GROUP BY
+			[Medical Condition]
+	),
+Tester1B AS
+	( SELECT
+		[Medical Condition],
+		COUNT(CASE WHEN [Elective Admission] = 1 THEN 1 END) AS [Count of Elective Admission],
+		COUNT(CASE WHEN [Emergency Admission] = 1 THEN 1 END) AS [Count of Emergency Admission],
+		COUNT(CASE WHEN [Urgent Admission] = 1 THEN 1 END) AS [Count of Urgent Admission],
+		COUNT(CASE WHEN [Aetna] = 1 THEN 1 END) AS [Count of Atena],
+		COUNT(CASE WHEN [Blue Cross] = 1 THEN 1 END) AS [Count of Blue Cross],
+		COUNT(CASE WHEN [Cigna] = 1 THEN 1 END) AS [Count of Cigna],
+		COUNT(CASE WHEN [Medicare] = 1 THEN 1 END) AS [Count of Medicare],
+		COUNT(CASE WHEN [UnitedHealthcare] = 1 THEN 1 END) AS [Count of UnitedHealthcare],
+		COUNT(CASE WHEN [Male] = 1 THEN 1 END) AS [Count of Males],
+		COUNT(CASE WHEN [Female] = 1 THEN 1 END) AS [Count of Females],
+		COUNT(CASE WHEN [Aspirin] = 1 THEN 1 END) AS [Count of Aspirin],
+		COUNT(CASE WHEN [Ibuprofen] = 1 THEN 1 END) AS [Count of Ibuprofen],
+		COUNT(CASE WHEN [Lipitor] = 1 THEN 1 END) AS [Count of Lipitor],
+		COUNT(CASE WHEN [Paracetamol] = 1 THEN 1 END) AS [Count of Paracetamol],
+		COUNT(CASE WHEN [Penicillin] = 1 THEN 1 END) AS [Count of Penicillin],
+		COUNT(CASE WHEN [AB-] = 1 THEN 1 END) AS [Count of AB-],
+		COUNT(CASE WHEN [AB+] = 1 THEN 1 END) AS [Count of AB+],
+		COUNT(CASE WHEN [A-] = 1 THEN 1 END) AS [Count of A-],
+		COUNT(CASE WHEN [A+] = 1 THEN 1 END) AS [Count of A+],
+		COUNT(CASE WHEN [B-] = 1 THEN 1 END) AS [Count of B-],
+		COUNT(CASE WHEN [B+] = 1 THEN 1 END) AS [Count of B+],
+		COUNT(CASE WHEN [O+] = 1 THEN 1 END) AS [Count of O+],
+		COUNT(CASE WHEN [O-] = 1 THEN 1 END) AS [Count of O-],
+		COUNT(CASE WHEN [Abnormal Test] = 1 THEN 1 END) AS [Count of Abnormal Test],
+		COUNT(CASE WHEN [Inconclusive Test] = 1 THEN 1 END) AS [Count of Inconclusive Test],
+		COUNT(CASE WHEN [Normal Test] = 1 THEN 1 END) AS [Count of Normal Test]
+	
+
+
+	  FROM 
+		Analysis_CTE
+
+	  GROUP BY
+		[Medical Condition]
+	),
+Tester2B AS
+	( SELECT
+		[Medical Condition],
+		[Count of Elective Admission] * 100.0 /
+		([Count of Elective Admission] + [Count of Emergency Admission] + [Count of Urgent Admission])
+		AS [Percentage of Elective Admission per Condition],
+		[Count of Emergency Admission] * 100.0 /
+		([Count of Elective Admission] + [Count of Emergency Admission] + [Count of Urgent Admission])
+		AS [Percentage of Emergency Admission per Condition],
+		[Count of Urgent Admission] * 100.0 /
+		([Count of Elective Admission] + [Count of Emergency Admission] + [Count of Urgent Admission])
+		AS [Percentage of Urgent Admission per Condition],
+		[Count of Atena] * 100.0 /
+		([Count of Atena] + [Count of Blue Cross] + [Count of Cigna] + [Count of Medicare] + [Count of UnitedHealthcare])
+		AS [Percentage of Atena Insurance per Condition],
+		[Count of Blue Cross] * 100.0 /
+		([Count of Atena] + [Count of Blue Cross] + [Count of Cigna] + [Count of Medicare] + [Count of UnitedHealthcare])
+		AS [Percentage of Blue Cross Insurance per Condition],
+		[Count of Cigna] * 100.0 /
+		([Count of Atena] + [Count of Blue Cross] + [Count of Cigna] + [Count of Medicare] + [Count of UnitedHealthcare])
+		AS [Percentage of Cigna Insurance per Condition],
+		[Count of Medicare] * 100.0 /
+		([Count of Atena] + [Count of Blue Cross] + [Count of Cigna] + [Count of Medicare] + [Count of UnitedHealthcare])
+		AS [Percentage of Medicare Insurance per Condition],
+		[Count of UnitedHealthcare] * 100.0 /
+		([Count of Atena] + [Count of Blue Cross] + [Count of Cigna] + [Count of Medicare] + [Count of UnitedHealthcare])
+		AS [Percentage of UnitedHealthcare Insurance per Condition],
+		[Count of Males] * 100.0 / ([Count of Males] + [Count of Females])
+		AS [Percentage of Males per Condition],
+		[Count of Females] * 100.0 / ([Count of Males] + [Count of Females])
+		AS [Percentage of Females per Condition],
+		[Count of Aspirin] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Aspirin per Condition],
+		[Count of Ibuprofen] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Ibuprofen per Condition],
+		[Count of Lipitor] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Lipitor per Condition],
+		[Count of Paracetamol] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Paracetamol per Condition],
+		[Count of Penicillin] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Penicillin per Condition],
+		[Count of AB-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of AB- per Condition],
+		[Count of AB+] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of AB+ per Condition],
+		[Count of A-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of A- per Condition],
+		[Count of A+] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of A+ per Condition],
+		[Count of B-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of B- per Condition],
+		[Count of AB-] * 100.0 /
+		([Count of B+] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of B+ per Condition],
+		[Count of O-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of O- per Condition],
+		[Count of O+] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of O+ per Condition],
+		[Count of Abnormal Test] * 100.0 /
+		([Count of Abnormal Test] + [Count of Normal Test] + [Count of Inconclusive Test])
+		AS [Percentage of Abnormal Test per Condition],
+		[Count of Normal Test] * 100.0 /
+		([Count of Abnormal Test] + [Count of Normal Test] + [Count of Inconclusive Test])
+		AS [Percentage of Normal Test per Condition],
+		[Count of Inconclusive Test] * 100.0 /
+		([Count of Abnormal Test] + [Count of Normal Test] + [Count of Inconclusive Test])
+		AS [Percentage of Inconclusive Test per Condition]
+	  FROM
+		Tester1B
+	)
+SELECT
+	t1a.[Medical Condition],
+	t1a.[Number of Patients],
+	t1a.[Total Bill per Condition],
+	t1a.[Average Bill per Condition],
+	t1a.[Maximum Bill per Condition],
+	t1a.[Minimum Bill per Condition],
+	t1a.[Average Age per Condition],
+	t1a.[Maximum Age per Condition],
+	t1a.[Minimum Age per Condition],
+	t1a.[Average Days of Stay per Condition],
+	t1a.[Maximum Days of Stay per Condition],
+	t1a.[Minimum Days of Stay per Condition],
+	t2b.[Percentage of Males per Condition],
+	t2b.[Percentage of Females per Condition],
+	t2b.[Percentage of Atena Insurance per Condition],
+	t2b.[Percentage of Blue Cross Insurance per Condition],
+	t2b.[Percentage of Cigna Insurance per Condition],
+	t2b.[Percentage of Medicare Insurance per Condition],
+	t2b.[Percentage of UnitedHealthcare Insurance per Condition],
+	t2b.[Percentage of Elective Admission per Condition],
+	t2b.[Percentage of Emergency Admission per Condition],
+	t2b.[Percentage of Urgent Admission per Condition],
+	t2b.[Percentage of Aspirin per Condition],
+	t2b.[Percentage of Ibuprofen per Condition],
+	t2b.[Percentage of Lipitor per Condition],
+	t2b.[Percentage of Paracetamol per Condition],
+	t2b.[Percentage of Penicillin per Condition],
+	t2b.[Percentage of A- per Condition],
+	t2b.[Percentage of A+ per Condition],
+	t2b.[Percentage of AB- per Condition],
+	t2b.[Percentage of AB+ per Condition],
+	t2b.[Percentage of B- per Condition],
+	t2b.[Percentage of B+ per Condition],
+	t2b.[Percentage of O- per Condition],
+	t2b.[Percentage of O+ per Condition],
+	t2b.[Percentage of Abnormal Test per Condition],
+	t2b.[Percentage of Normal Test per Condition],
+	t2b.[Percentage of Inconclusive Test per Condition]
+
+FROM 
+	Tester1A AS t1a
+	JOIN Tester1B AS t1b
+	ON t1a.[Medical Condition] = t1b.[Medical Condition]
+	JOIN Tester2B AS t2b
+	ON t1a.[Medical Condition] = t2b.[Medical Condition]
+ORDER BY
+	t1a.[Medical Condition] ASC;
+-- Calculate Insights per Insurance Provider
+WITH Analysis_CTE AS 
+(	
+SELECT 
+	[Gender],
+	[Age],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length of Stay in Days],
+	[Medical Condition],
+	[Medication],
+	ROUND([Billing Amount], 2) AS [Billing Amount],
+	[Blood Type],
+	[Insurance Provider],
+	[Admission Type],
+	[Test Results],
+	CASE
+		WHEN [Gender] = 'Male' THEN 1 ELSE 0 End AS [Male],
+	CASE 
+		WHEN [Gender] = 'Female' THEN 1 ELSE 0 END AS [Female],
+	CASE
+		WHEN [Medical Condition] = 'Arthritis' THEN 1 ELSE 0 END AS [Arthritis],
+	CASE	
+		WHEN [Medical Condition] = 'Asthma' THEN 1 ELSE 0 END AS [Asthma],
+	CASE
+		WHEN [Medical Condition] = 'Cancer' THEN 1 ELSE 0 END AS [Cancer],
+	CASE
+		WHEN [Medical Condition] = 'Diabetes' THEN 1 ELSE 0 END AS [Diabetes],
+	CASE
+		WHEN [Medical Condition] = 'Hypertension' THEN 1 ELSE 0 END AS [Hypertension],
+	CASE
+		WHEN [Medical Condition] = 'Obesity' THEN 1 ELSE 0 END AS [Obesity],
+	CASE 
+		WHEN [Insurance Provider] = 'Aetna' THEN 1 ELSE 0 END AS [Aetna],
+	CASE 
+		WHEN [Insurance Provider] = 'Blue Cross' THEN 1 ELSE 0 END AS [Blue Cross],
+	CASE 
+		WHEN [Insurance Provider] = 'Cigna' THEN 1 ELSE 0 END AS [Cigna],
+	CASE 
+		WHEN [Insurance Provider] = 'Medicare' THEN 1 ELSE 0 END AS [Medicare],
+	CASE 
+		WHEN [Insurance Provider] = 'UnitedHealthcare' THEN 1 ELSE 0 END AS [UnitedHealthcare],
+	CASE 
+		WHEN [Medication] = 'Aspirin' THEN 1 ELSE 0 END AS [Aspirin],
+	CASE 
+		WHEN [Medication] = 'Ibuprofen' THEN 1 ELSE 0 END AS [Ibuprofen],
+	CASE 
+		WHEN [Medication] = 'Lipitor' THEN 1 ELSE 0 END AS [Lipitor],
+	CASE 
+		WHEN [Medication] = 'Paracetamol' THEN 1 ELSE 0 END AS [Paracetamol],
+	CASE 
+		WHEN [Medication] = 'Penicillin' THEN 1 ELSE 0 END AS [Penicillin],
+	CASE
+		WHEN [Admission Type] = 'Elective' THEN 1 ELSE 0 END AS [Elective Admission],
+	CASE
+		WHEN [Admission Type] = 'Emergency' THEN 1 ELSE 0 END AS [Emergency Admission],
+	CASE
+		WHEN [Admission Type] = 'Urgent' THEN 1 ELSE 0 END AS [Urgent Admission],
+	CASE 
+		WHEN [Test Results] = 'Abnormal' THEN 1 ELSE 0 END AS [Abnormal Test],
+	CASE 
+		WHEN [Test Results] = 'Inconclusive' THEN 1 ELSE 0 END AS [Inconclusive Test],
+	CASE 
+		WHEN [Test Results] = 'Normal' THEN 1 ELSE 0 END AS [Normal Test],
+	CASE
+		WHEN [Blood Type] = 'A+' THEN 1 ELSE 0 END AS [A+],
+	CASE
+		WHEN [Blood Type] = 'A-' THEN 1 ELSE 0 END AS [A-],
+	CASE
+		WHEN [Blood Type] = 'AB+' THEN 1 ELSE 0 END AS [AB+],
+	CASE
+		WHEN [Blood Type] = 'AB-' THEN 1 ELSE 0 END AS [AB-],
+	CASE
+		WHEN [Blood Type] = 'B+' THEN 1 ELSE 0 END AS [B+],
+	CASE
+		WHEN [Blood Type] = 'B-' THEN 1 ELSE 0 END AS [B-],
+	CASE
+		WHEN [Blood Type] = 'O+' THEN 1 ELSE 0 END AS [O+],
+	CASE
+		WHEN [Blood Type] = 'O-' THEN 1 ELSE 0 END AS [O-]
+FROM 
+	[HospitalData].[dbo].[Analysis_Table]
+),
+Tester1A AS
+	(
+		SELECT 
+			[Insurance Provider],
+			SUM([Billing Amount]) AS [Total Bill per Insurance Provider],
+			AVG([Billing Amount]) AS [Average Bill per Insurance Provider],
+			MAX([Billing Amount]) AS [Maximum Bill per Insurance Provider],
+			MIN([Billing Amount]) AS [Minimum Bill per Insurance Provider],
+			AVG([Length of Stay in Days]) AS [Average Days of Stay per Insurance Provider],
+			MAX([Length of Stay in Days]) AS [Maximum Days of Stay per Insurance Provider],
+			MIN([Length of Stay in Days]) AS [Minimum Days of Stay per Insurance Provider],
+			COUNT(*) AS [Number of Patients per Insurance Provider],
+			AVG([Age]) AS [Average Age per Insurance Provider],
+			MAX([Age]) AS [Maximum Age per Insurance Provider],
+			MIN([Age]) AS [Minimum Age per Insurance Provider]
+
+		FROM 
+			Analysis_CTE
+
+		GROUP BY
+			[Insurance Provider]
+	),
+Tester1B AS
+	( SELECT
+		[Insurance Provider],
+		COUNT(CASE WHEN [Elective Admission] = 1 THEN 1 END) AS [Count of Elective Admission],
+		COUNT(CASE WHEN [Emergency Admission] = 1 THEN 1 END) AS [Count of Emergency Admission],
+		COUNT(CASE WHEN [Urgent Admission] = 1 THEN 1 END) AS [Count of Urgent Admission],
+		COUNT(CASE WHEN [Arthritis] = 1 THEN 1 END) AS [Count of Arthritis Conditions],
+		COUNT(CASE WHEN [Asthma] = 1 THEN 1 END) AS [Count of Asthma Conditions],
+		COUNT(CASE WHEN [Cancer] = 1 THEN 1 END) AS [Count of Cancer Conditions],
+		COUNT(CASE WHEN [Diabetes] = 1 THEN 1 END) AS [Count of Diabetes Conditions],
+		COUNT(CASE WHEN [Hypertension] = 1 THEN 1 END) AS [Count of Hypertension Conditions],
+		COUNT(CASE WHEN [Obesity] = 1 THEN 1 END) AS [Count of Obesity Conditions],
+		COUNT(CASE WHEN [Male] = 1 THEN 1 END) AS [Count of Males],
+		COUNT(CASE WHEN [Female] = 1 THEN 1 END) AS [Count of Females],
+		COUNT(CASE WHEN [Aspirin] = 1 THEN 1 END) AS [Count of Aspirin],
+		COUNT(CASE WHEN [Ibuprofen] = 1 THEN 1 END) AS [Count of Ibuprofen],
+		COUNT(CASE WHEN [Lipitor] = 1 THEN 1 END) AS [Count of Lipitor],
+		COUNT(CASE WHEN [Paracetamol] = 1 THEN 1 END) AS [Count of Paracetamol],
+		COUNT(CASE WHEN [Penicillin] = 1 THEN 1 END) AS [Count of Penicillin],
+		COUNT(CASE WHEN [AB-] = 1 THEN 1 END) AS [Count of AB-],
+		COUNT(CASE WHEN [AB+] = 1 THEN 1 END) AS [Count of AB+],
+		COUNT(CASE WHEN [A-] = 1 THEN 1 END) AS [Count of A-],
+		COUNT(CASE WHEN [A+] = 1 THEN 1 END) AS [Count of A+],
+		COUNT(CASE WHEN [B-] = 1 THEN 1 END) AS [Count of B-],
+		COUNT(CASE WHEN [B+] = 1 THEN 1 END) AS [Count of B+],
+		COUNT(CASE WHEN [O+] = 1 THEN 1 END) AS [Count of O+],
+		COUNT(CASE WHEN [O-] = 1 THEN 1 END) AS [Count of O-],
+		COUNT(CASE WHEN [Abnormal Test] = 1 THEN 1 END) AS [Count of Abnormal Test],
+		COUNT(CASE WHEN [Inconclusive Test] = 1 THEN 1 END) AS [Count of Inconclusive Test],
+		COUNT(CASE WHEN [Normal Test] = 1 THEN 1 END) AS [Count of Normal Test]
+	
+
+
+	  FROM 
+		Analysis_CTE
+
+	  GROUP BY
+		[Insurance Provider]
+	),
+Tester2B AS
+	( SELECT
+		[Insurance Provider],
+		[Count of Elective Admission] * 100.0 /
+		([Count of Elective Admission] + [Count of Emergency Admission] + [Count of Urgent Admission])
+		AS [Percentage of Elective Admission per Insurance Provider],
+		[Count of Emergency Admission] * 100.0 /
+		([Count of Elective Admission] + [Count of Emergency Admission] + [Count of Urgent Admission])
+		AS [Percentage of Emergency Admission per Insurance Provider],
+		[Count of Urgent Admission] * 100.0 /
+		([Count of Elective Admission] + [Count of Emergency Admission] + [Count of Urgent Admission])
+		AS [Percentage of Urgent Admission per Insurance Provider],
+		[Count of Arthritis Conditions] * 100.0 /
+		([Count of Arthritis Conditions] + [Count of Asthma Conditions] + [Count of Cancer Conditions]
+		+ [Count of Diabetes Conditions] + [Count of Hypertension Conditions] + [Count of Obesity Conditions])
+		AS [Percentage of Arithritis Conditions treated],
+		[Count of Asthma Conditions] * 100.0 /
+		([Count of Arthritis Conditions] + [Count of Asthma Conditions] + [Count of Cancer Conditions]
+		+ [Count of Diabetes Conditions] + [Count of Hypertension Conditions] + [Count of Obesity Conditions])
+		AS [Percentage of Asthma Conditions treated],
+		[Count of Cancer Conditions] * 100.0 /
+		([Count of Arthritis Conditions] + [Count of Asthma Conditions] + [Count of Cancer Conditions]
+		+ [Count of Diabetes Conditions] + [Count of Hypertension Conditions] + [Count of Obesity Conditions])
+		AS [Percentage of Cancer Conditions treated],
+		[Count of Diabetes Conditions] * 100.0 /
+		([Count of Arthritis Conditions] + [Count of Asthma Conditions] + [Count of Cancer Conditions]
+		+ [Count of Diabetes Conditions] + [Count of Hypertension Conditions] + [Count of Obesity Conditions])
+		AS [Percentage of Diabetes Conditions treated],
+		[Count of Hypertension Conditions] * 100.0 /
+		([Count of Arthritis Conditions] + [Count of Asthma Conditions] + [Count of Cancer Conditions]
+		+ [Count of Diabetes Conditions] + [Count of Hypertension Conditions] + [Count of Obesity Conditions])
+		AS [Percentage of Hypertension Conditions treated],
+		[Count of Obesity Conditions] * 100.0 /
+		([Count of Arthritis Conditions] + [Count of Asthma Conditions] + [Count of Cancer Conditions]
+		+ [Count of Diabetes Conditions] + [Count of Hypertension Conditions] + [Count of Obesity Conditions])
+		AS [Percentage of Obesity Conditions treated],
+		[Count of Males] * 100.0 / ([Count of Males] + [Count of Females])
+		AS [Percentage of Males per Insurance Provider],
+		[Count of Females] * 100.0 / ([Count of Males] + [Count of Females])
+		AS [Percentage of Females per Insurance Provider],
+		[Count of Aspirin] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Aspirin per Insurance Provider],
+		[Count of Ibuprofen] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Ibuprofen per Insurance Provider],
+		[Count of Lipitor] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Lipitor per Insurance Provider],
+		[Count of Paracetamol] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Paracetamol per Insurance Provider],
+		[Count of Penicillin] * 100.0 /
+		([Count of Aspirin] + [Count of Ibuprofen] +  [Count of Lipitor] + [Count of Paracetamol] + [Count of Penicillin])
+		AS [Percentage of Penicillin per Insurance Provider],
+		[Count of AB-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of AB- per Insurance Provider],
+		[Count of AB+] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of AB+ per Insurance Provider],
+		[Count of A-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of A- per Insurance Provider],
+		[Count of A+] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of A+ per Insurance Provider],
+		[Count of B-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of B- per Insurance Provider],
+		[Count of AB-] * 100.0 /
+		([Count of B+] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of B+ per Insurance Provider],
+		[Count of O-] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of O- per Insurance Provider],
+		[Count of O+] * 100.0 /
+		([Count of AB-] + [Count of AB+] + [Count of A-] + [Count of A+] + [Count of B-] + [Count of B+] + [Count of O+]+ [Count of O-])
+		AS [Percentage of O+ per Insurance Provider],
+		[Count of Abnormal Test] * 100.0 /
+		([Count of Abnormal Test] + [Count of Normal Test] + [Count of Inconclusive Test])
+		AS [Percentage of Abnormal Test per Insurance Provider],
+		[Count of Normal Test] * 100.0 /
+		([Count of Abnormal Test] + [Count of Normal Test] + [Count of Inconclusive Test])
+		AS [Percentage of Normal Test per Insurance Provider],
+		[Count of Inconclusive Test] * 100.0 /
+		([Count of Abnormal Test] + [Count of Normal Test] + [Count of Inconclusive Test])
+		AS [Percentage of Inconclusive Test per Insurance Provider]
+		
+
+	  FROM
+		Tester1B
+	)
+SELECT
+	t1a.[Insurance Provider],
+	t1a.[Number of Patients per Insurance Provider],
+	t1a.[Total Bill per Insurance Provider],
+	t1a.[Average Bill per Insurance Provider],
+	t1a.[Maximum Bill per Insurance Provider],
+	t1a.[Minimum Bill per Insurance Provider],
+	t1a.[Average Age per Insurance Provider],
+	t1a.[Maximum Age per Insurance Provider],
+	t1a.[Minimum Age per Insurance Provider],
+	t1a.[Average Days of Stay per Insurance Provider],
+	t1a.[Maximum Days of Stay per Insurance Provider],
+	t1a.[Minimum Days of Stay per Insurance Provider],
+	t2b.[Percentage of Males per Insurance Provider],
+	t2b.[Percentage of Females per Insurance Provider],
+	t2b.[Percentage of Arithritis Conditions treated],
+	t2b.[Percentage of Asthma Conditions treated],
+	t2b.[Percentage of Cancer Conditions treated],
+	t2b.[Percentage of Diabetes Conditions treated],
+	t2b.[Percentage of Hypertension Conditions treated],
+	t2b.[Percentage of Obesity Conditions treated],
+	t2b.[Percentage of Elective Admission per Insurance Provider],
+	t2b.[Percentage of Emergency Admission per Insurance Provider],
+	t2b.[Percentage of Urgent Admission per Insurance Provider],
+	t2b.[Percentage of Aspirin per Insurance Provider],
+	t2b.[Percentage of Ibuprofen per Insurance Provider],
+	t2b.[Percentage of Lipitor per Insurance Provider],
+	t2b.[Percentage of Paracetamol per Insurance Provider],
+	t2b.[Percentage of Penicillin per Insurance Provider],
+	t2b.[Percentage of A- per Insurance Provider],
+	t2b.[Percentage of A+ per Insurance Provider],
+	t2b.[Percentage of AB- per Insurance Provider],
+	t2b.[Percentage of AB+ per Insurance Provider],
+	t2b.[Percentage of B- per Insurance Provider],
+	t2b.[Percentage of B+ per Insurance Provider],
+	t2b.[Percentage of O- per Insurance Provider],
+	t2b.[Percentage of O+ per Insurance Provider],
+	t2b.[Percentage of Abnormal Test per Insurance Provider],
+	t2b.[Percentage of Normal Test per Insurance Provider],
+	t2b.[Percentage of Inconclusive Test per Insurance Provider]
+FROM 
+	Tester1A AS t1a
+	JOIN Tester1B AS t1b
+	ON t1a.[Insurance Provider] = t1b.[Insurance Provider]
+	JOIN Tester2B AS t2b
+	ON t1a.[Insurance Provider] = t2b.[Insurance Provider]
+ORDER BY
+	[Insurance Provider] ASC;
+-- Exploring Insights about the relationship between Billing Amount & Length of Stay
+SELECT
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	[Billing Amount] AS [Billing_Amount]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+ORDER BY
+	[Length_of_Stay_in_Days] ASC,
+	[Billing_Amount] DESC;
+-- Exploring Insights about the relationship between Billing Amount & Medication
+SELECT
+	[Medication],
+	[Billing Amount] AS [Billing_Amount]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+ORDER BY
+	[Medication] ASC,
+	[Billing_Amount] DESC;
+-- Exploring Insights about the relationship between Billing Amount & Medical Condition
+SELECT
+	[Medical Condition] AS [Medical_Condition],
+	[Billing Amount] AS [Billing_Amount]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+ORDER BY
+	[Medical_Condition] ASC,
+	[Billing_Amount] DESC;
+-- Exploring Insights about the relationship between Billing Amount, Length of Stay, and Medical Condition
+SELECT
+	[Medical Condition] AS [Medical_Condition],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	[Billing Amount] AS [Billing_Amount]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+ORDER BY
+	[Medical_Condition] ASC,
+	[Length_of_Stay_in_Days] ASC,
+	[Billing_Amount] DESC;
+-- Exploring Insights about the relationship between Billing Amount, Length of Stay, and Medication
+SELECT
+	[Medication],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	[Billing Amount] AS [Billing_Amount]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+
+ORDER BY
+	[Medication] ASC,
+	[Length_of_Stay_in_Days] ASC,
+	[Billing_Amount] DESC;
+-- Exploring Insights about the relationship between Billing Amount, Length of Stay, Medication, and Medical Condition
+SELECT
+	[Medical Condition] AS [Medical_Condition],
+	[Medication],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	[Billing Amount]AS [Billing_Amount]
+FROM	
+	[HospitalData].[dbo].[Analysis_Table]
+ORDER BY
+	[Medical_Condition] ASC,
+	[Length_of_Stay_in_Days] ASC,
+	[Medication] ASC,
+	[Billing_Amount] DESC;
+-- Creating View as New dataset for Tableua Dashboard and further python Analysis and Data Visualization
+CREATE VIEW Data_Analysis_View AS
+SELECT 
+	[Patient_First_Name] AS [Patient_First_Name],
+	[Patient_Last_Name] AS [Patient_Last_Name],
+	[Gender],
+	[Age],
+	[Date of Admission] AS [Date_of_Admission],
+	YEAR([Date of Admission]) AS [Admission_Year],
+	MONTH([Date of Admission]) AS [Admission_Month],
+	DATEPART(WEEK,[Date of Admission]) AS [Admission_Week],
+	DATEPART(DAY, [Date of Admission]) AS [Admission_Day],
+	DATEPART(WEEKDAY, [Date of Admission]) AS [Admission_WeekDay_Number],
+	DATENAME(WEEKDAY, [Date of Admission]) AS [Admission_WeekDay_Name],
+	[Discharge Date] AS [Discharge_Date],
+	YEAR([Discharge Date]) AS [Discharge_Year],
+	MONTH([Discharge Date]) AS [Discharge_Month],
+	DATEPART(WEEK,[Discharge Date]) AS [Discharge_Week],
+	DATEPART(DAY, [Discharge Date]) AS [Discharge_Day],
+	DATEPART(WEEKDAY, [Discharge Date]) AS [Discharge_WeekDay_Number],
+	DATENAME(WEEKDAY, [Discharge Date]) AS [Discharge_WeekDay_Name],
+	DATEDIFF(DAY, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Days],
+	DATEDIFF(MONTH, [Date of Admission], [Discharge Date]) AS [Length_of_Stay_in_Months],
+	[Medical Condition] AS [Medical_Condition],
+	[Medication],
+	ROUND([Billing Amount], 2) AS [Billing_Amount],
+	[Blood Type] AS [Blood_Type],
+	[Hospital],
+	[Insurance Provider] AS [Insurance_Provider],
+	[Admission Type] AS [Admission_Type],
+	[Test Results] AS [Test_Results],
+	[Doctor_First_Name] AS [Doctor First Name],
+	[Doctor_Last_Name] AS [Doctor_Last_Name],
+	[Room Number] AS [Room_Number],
+	CASE
+		WHEN [Gender] = 'Male' THEN 1 ELSE 0 End AS [Male],
+	CASE 
+		WHEN [Gender] = 'Female' THEN 1 ELSE 0 END AS [Female],
+	CASE
+		WHEN [Medical Condition] = 'Arthritis' THEN 1 ELSE 0 END AS [Arthritis],
+	CASE	
+		WHEN [Medical Condition] = 'Asthma' THEN 1 ELSE 0 END AS [Asthma],
+	CASE
+		WHEN [Medical Condition] = 'Cancer' THEN 1 ELSE 0 END AS [Cancer],
+	CASE
+		WHEN [Medical Condition] = 'Diabetes' THEN 1 ELSE 0 END AS [Diabetes],
+	CASE
+		WHEN [Medical Condition] = 'Hypertension' THEN 1 ELSE 0 END AS [Hypertension],
+	CASE
+		WHEN [Medical Condition] = 'Obesity' THEN 1 ELSE 0 END AS [Obesity],
+	CASE
+		WHEN [Age] < 18 THEN 'BELOW 18' 
+		WHEN [Age] < 30 THEN 'BETWEEN 18 & 30'
+		WHEN [Age] < 45 THEN 'BETWEEN 30 & 45'
+		WHEN [Age] < 60 THEN 'BETWEEN 45 & 60'
+		ELSE 'Above 60'
+	END AS [Age_Range],
+	CASE 
+		WHEN [Age] < 18 Then 1 ELSE 0 END AS [Below_18],
+	CASE 
+		WHEN [Age] >= 18 AND [Age] < 30 THEN 1 ELSE 0 END AS [Between_18_&_30],
+	CASE 
+		WHEN [Age] >= 30 AND [Age] < 45 THEN 1 ELSE 0 END AS [Between_30_&_45],
+	CASE 
+		WHEN [Age] >= 45 AND [Age] < 60 THEN 1 ELSE 0 END AS [Between_45_&_60],
+	CASE 
+		WHEN [Age] >= 60  Then 1 ELSE 0 END AS [Above_60],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 'Below 3 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 7 THEN 'Between 3 & 7 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 15 THEN 'Between 7 & 15 Days'
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) <= 30 THEN 'Above 15 Days'
+	END AS [Length_of_Stay_Category],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) < 3 THEN 1 ELSE 0 END AS [Below_3_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 3 AND 7  THEN 1 ELSE 0 END AS [Between_3_&_7_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 7 AND 15  THEN 1 ELSE 0 END AS [Between_7_&_15_Days],
+	CASE
+		WHEN DATEDIFF(DAY, [Date of Admission], [Discharge Date]) BETWEEN 15 AND 30  THEN 1 ELSE 0 END AS [Above_15_Days],
+	CASE 
+		WHEN [Insurance Provider] = 'Aetna' THEN 1 ELSE 0 END AS [Aetna],
+	CASE 
+		WHEN [Insurance Provider] = 'Blue Cross' THEN 1 ELSE 0 END AS [Blue_Cross],
+	CASE 
+		WHEN [Insurance Provider] = 'Cigna' THEN 1 ELSE 0 END AS [Cigna],
+	CASE 
+		WHEN [Insurance Provider] = 'Medicare' THEN 1 ELSE 0 END AS [Medicare],
+	CASE 
+		WHEN [Insurance Provider] = 'UnitedHealthcare' THEN 1 ELSE 0 END AS [UnitedHealthcare],
+	CASE 
+		WHEN [Medication] = 'Aspirin' THEN 1 ELSE 0 END AS [Aspirin],
+	CASE 
+		WHEN [Medication] = 'Ibuprofen' THEN 1 ELSE 0 END AS [Ibuprofen],
+	CASE 
+		WHEN [Medication] = 'Lipitor' THEN 1 ELSE 0 END AS [Lipitor],
+	CASE 
+		WHEN [Medication] = 'Paracetamol' THEN 1 ELSE 0 END AS [Paracetamol],
+	CASE 
+		WHEN [Medication] = 'Penicillin' THEN 1 ELSE 0 END AS [Penicillin],
+	CASE
+		WHEN [Admission Type] = 'Elective' THEN 1 ELSE 0 END AS [Elective_Admission],
+	CASE
+		WHEN [Admission Type] = 'Emergency' THEN 1 ELSE 0 END AS [Emergency_Admission],
+	CASE
+		WHEN [Admission Type] = 'Urgent' THEN 1 ELSE 0 END AS [Urgent_Admission],
+	CASE 
+		WHEN [Test Results] = 'Abnormal' THEN 1 ELSE 0 END AS [Abnormal_Test],
+	CASE 
+		WHEN [Test Results] = 'Inconclusive' THEN 1 ELSE 0 END AS [Inconclusive_Test],
+	CASE 
+		WHEN [Test Results] = 'Normal' THEN 1 ELSE 0 END AS [Normal_Test],
+	CASE
+		WHEN [Blood Type] = 'A+' THEN 1 ELSE 0 END AS [A+],
+	CASE
+		WHEN [Blood Type] = 'A-' THEN 1 ELSE 0 END AS [A-],
+	CASE
+		WHEN [Blood Type] = 'AB+' THEN 1 ELSE 0 END AS [AB+],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN '2019'
+		WHEN YEAR([Date of Admission]) = 2020 THEN '2020'
+		WHEN YEAR([Date of Admission]) = 2021 THEN '2021'
+		WHEN YEAR([Date of Admission]) = 2022 THEN '2022'
+		WHEN YEAR([Date of Admission]) = 2023 THEN '2023'
+		WHEN YEAR([Date of Admission]) = 2024 THEN '2024'
+		WHEN YEAR([Date of Admission]) = 2025 THEN '2025'
+	END AS [Year_of_Admission],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2019 THEN 1 ELSE 0 END AS [2019],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2020 THEN 1 ELSE 0 END AS [2020],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2021 THEN 1 ELSE 0 END AS [2021],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2022 THEN 1 ELSE 0 END AS [2022],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2023 THEN 1 ELSE 0 END AS [2023],
+	CASE
+		WHEN YEAR([Date of Admission]) = 2024 THEN 1 ELSE 0 END AS [2024],
+	CASE
+		WHEN MONTH([Date of Admission]) = 1 THEN 'January'
+		WHEN MONTH([Date of Admission]) = 2 THEN 'February'
+		WHEN MONTH([Date of Admission]) = 3 THEN 'March'
+		WHEN MONTH([Date of Admission]) = 4 THEN 'April'
+		WHEN MONTH([Date of Admission]) = 5 THEN 'May'
+		WHEN MONTH([Date of Admission]) = 6 THEN 'June'
+		WHEN MONTH([Date of Admission]) = 7 THEN 'July'
+		WHEN MONTH([Date of Admission]) = 8 THEN 'August'
+		WHEN MONTH([Date of Admission]) = 9 THEN 'September'
+		WHEN MONTH([Date of Admission]) = 10 THEN 'October'
+		WHEN MONTH([Date of Admission]) = 11 THEN 'November'
+		WHEN MONTH([Date of Admission]) = 12 THEN 'December'
+	END AS [Month_of_Admission],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 1 THEN 1 ELSE 0 END AS [January],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 2 THEN 1 ELSE 0 END AS [February],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 3 THEN 1 ELSE 0 END AS [March],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 4 THEN 1 ELSE 0 END AS [April],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 5 THEN 1 ELSE 0 END AS [May],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 6 THEN 1 ELSE 0 END AS [June],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 7 THEN 1 ELSE 0 END AS [July],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 8 THEN 1 ELSE 0 END AS [August],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 9 THEN 1 ELSE 0 END AS [September],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 10 THEN 1 ELSE 0 END AS [October],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 11 THEN 1 ELSE 0 END AS [November],
+	CASE 
+		WHEN MONTH([Date of Admission]) = 12 THEN 1 ELSE 0 END AS [December],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (12,1,2) THEN 'WINTER'
+		WHEN MONTH([Date of Admission]) in (3,4,5) THEN 'Spring'
+		WHEN MONTH([Date of Admission]) in (6,7,8) THEN 'Summer'
+		WHEN MONTH([Date of Admission]) in (9,10,11) THEN 'Fall'
+	END AS [Season_of_Admission],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (12,1,2) THEN 1 ELSE 0 END AS [Winter],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (3,4,5) THEN 1 ELSE 0 END AS [Spring],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (6,7,8) THEN 1 ELSE 0 END AS [Summer],
+	CASE 
+		WHEN MONTH([Date of Admission]) in (9,10,11) THEN 1 ELSE 0 END AS [Fall],
+	CASE
+		WHEN [Blood Type] = 'AB-' THEN 1 ELSE 0 END AS [AB-],
+	CASE
+		WHEN [Blood Type] = 'B+' THEN 1 ELSE 0 END AS [B+],
+	CASE
+		WHEN [Blood Type] = 'B-' THEN 1 ELSE 0 END AS [B-],
+	CASE
+		WHEN [Blood Type] = 'O+' THEN 1 ELSE 0 END AS [O+],
+	CASE
+		WHEN [Blood Type] = 'O-' THEN 1 ELSE 0 END AS [O-],
+	CASE
+		WHEN [Billing Amount] < 100 THEN 'Below 100$'
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 'Between 100 & 1000$'
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 'Between 1000 & 5000$'
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 'Between 5000 & 10000$'
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 'Between 10000 & 25000$'
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 'Between 25000 & 50000$'
+		WHEN [Billing Amount] > 50000 THEN 'Above 50000$'
+	END AS [Billing_Range],
+	CASE
+		WHEN [Billing Amount] < 100 THEN 1 ELSE 0 END AS [Below_100$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 100 AND 1000 THEN 1 ELSE 0 END AS [Between_100_&_1000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 1000 AND 5000 THEN 1 ELSE 0 END AS [Between_1000_&_5000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 5000 AND 10000 THEN 1 ELSE 0 END AS [Between_5000_&_10000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 10000 AND 25000 THEN 1 ELSE 0 END AS [Between_10000_&_25000$],
+	CASE
+		WHEN [Billing Amount] BETWEEN 25000 AND 50000 THEN 1 ELSE 0 END AS [Between_25000_&_50000$],
+	CASE
+		WHEN [Billing Amount] > 50000 THEN 1 ELSE 0 END AS [Above_50000$],
+	CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 'Monday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 'Tuesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 'Wednesday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 'Thursday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 'Friday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 'Saturday'
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 'Sunday'
+	END AS [Day_of_Admission],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Monday' THEN 1 ELSE 0 END AS [Monday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Tuesday' THEN 1 ELSE 0 END AS [Teusday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Wednesday' THEN 1 ELSE 0 END AS [Wednesday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Thursday' THEN 1 ELSE 0 END AS [Thrusday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Friday' THEN 1 ELSE 0 END AS [Friday],
+	CASE 
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Saturday' THEN 1 ELSE 0 END AS [Saturday],
+	CASE
+		WHEN DATENAME(WEEKDAY, [Date of Admission])= 'Sunday' THEN 1 ELSE 0 END AS [Sunday] 
+FROM 
+	[HospitalData].[dbo].[Analysis_Table];
+--DONE :)
+
+
