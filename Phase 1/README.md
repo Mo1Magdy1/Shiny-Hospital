@@ -76,7 +76,5 @@ In this phase, we focus on **Exploratory Data Analysis (EDA)** to understand the
 - Works with standard SQL (tested on PostgreSQL & MySQL)
 - Requires import of `patients.xlsx` into a database table before running queries
 
-Install Python dependencies:
-```bash
-pip install -r requirements.txt
+
 
