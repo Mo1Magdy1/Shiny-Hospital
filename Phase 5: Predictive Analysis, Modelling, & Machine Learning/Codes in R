@@ -1,0 +1,311 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gridExtra")
+install.packages("MASS")
+install.packages("nortest")
+install.packages("car")
+install.packages("ggpubr")
+install.packages("stats")
+install.packages("forcats")
+install.packages("ggthemes")
+install.packages("viridis")
+install.packages("vcd")
+install.packages("patchwork")
+install.packages("GGally")
+install.packages("ggcorrplot")
+install.packages("prophet")
+install.packages("forecast")
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gridExtra)
+library(MASS)
+library(nortest)
+library(car)
+library(stats)
+library(forcats)
+library(ggthemes)
+library(viridis)
+library(vcd)
+library(patchwork)
+library(GGally)
+library(ggcorrplot)
+library(prophet)
+library(forecast)
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx")
+df <- admission_data
+
+
+# 1. number of patients per medical condition in the next three years per month
+# Step 1: Convert admission date to Date format if needed
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+
+# Step 2: Create Year-Month column
+df <- df %>%
+  mutate(YearMonth = floor_date(`Date of Admission`, unit = "month"))
+
+# Step 3: Count patients per month per medical condition
+monthly_counts <- df %>%
+  group_by(YearMonth, `Medical Condition`) %>%
+  summarise(Patient_Count = n(), .groups = 'drop')
+
+# Step 4: Pivot to wide format for time series modeling
+ts_data <- pivot_wider(monthly_counts,
+                       names_from = `Medical Condition`,
+                       values_from = Patient_Count,
+                       values_fill = 0)
+
+# Step 5: Time series forecasting per condition
+# Create a list to hold forecasts
+forecasts <- list()
+forecast_horizon <- 36  # 3 years × 12 months
+
+# Extract time index
+ts_start <- c(year(min(ts_data$YearMonth)), month(min(ts_data$YearMonth)))
+ts_end   <- c(year(max(ts_data$YearMonth)), month(max(ts_data$YearMonth)))
+
+# Loop through each condition and forecast
+for (condition in colnames(ts_data)[-1]) {
+  y <- ts(ts_data[[condition]], start = ts_start, frequency = 12)
+  model <- ets(y)  # You can replace with auto.arima(y)
+  fcast <- forecast(model, h = forecast_horizon)
+  forecasts[[condition]] <- data.frame(
+    Date = seq(max(ts_data$YearMonth) %m+% months(1), by = "month", length.out = forecast_horizon),
+    Condition = condition,
+    Forecast = as.numeric(fcast$mean)
+  )
+}
+
+# Step 6: Combine all forecasts
+forecast_df <- bind_rows(forecasts)
+
+# Step 7: Plot forecast
+ggplot(forecast_df, aes(x = Date, y = Forecast, color = Condition)) +
+  geom_line(size = 1.2) +
+  labs(title = "Forecast: Monthly Patient Counts per Medical Condition (Next 3 Years)",
+       x = "Month", y = "Predicted Patient Count") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Comparing the results of different three predictive models 
+
+# Set random seed for reproducibility
+set.seed(42)
+
+# Generate synthetic monthly data for 4 years
+dates <- seq(as.Date("2020-01-01"), by = "month", length.out = 48)
+patients <- round(100 + 10 * sin(1:48 * 2 * pi / 12) + rnorm(48, 0, 5))
+df <- data.frame(Date = dates, Patients = patients)
+
+# Convert to time series object
+ts_data <- ts(df$Patients, start = c(2020, 1), frequency = 12)
+
+# 1. ETS Model
+ets_model <- ets(ts_data)
+ets_forecast <- forecast(ets_model, h = 36)  # Forecast next 36 months
+
+# 2. Manual ARIMA Model
+# ARIMA(p=1, d=1, q=1) with seasonal (P=1, D=1, Q=1, period=12)
+arima_model <- Arima(ts_data, order = c(1,1,1), seasonal = list(order = c(1,1,1), period = 12))
+arima_forecast <- forecast(arima_model, h = 36)
+
+# 3. Prophet Model
+df_prophet <- df %>% rename(ds = Date, y = Patients)
+prophet_model <- prophet(df_prophet, yearly.seasonality = TRUE)
+future <- make_future_dataframe(prophet_model, periods = 36, freq = "month")
+forecast_prophet <- predict(prophet_model, future)
+
+# Create full date range for historical + forecast period
+full_dates <- seq(as.Date("2020-01-01"), by = "month", length.out = 84)
+
+# Combine actuals and forecasts into a single dataframe
+df_plot <- data.frame(
+  Date = full_dates,
+  Actual = c(df$Patients, rep(NA, 36)),
+  ETS = c(rep(NA, 48), ets_forecast$mean),
+  ARIMA = c(rep(NA, 48), arima_forecast$mean),
+  Prophet = forecast_prophet$yhat
+)
+
+# Convert to long format for plotting
+df_long <- df_plot %>%
+  pivot_longer(cols = -Date, names_to = "Model", values_to = "Patients")
+
+# Plot the comparison of all models
+ggplot(df_long, aes(x = Date, y = Patients, color = Model)) +
+  geom_line(size = 1) +
+  theme_minimal() +
+  labs(title = "Forecast Comparison of Patient Counts (Monthly)",
+       y = "Number of Patients", x = "Date") +
+  scale_color_manual(values = c("black", "blue", "red", "green")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 2. Estimate total Daily Billing Amount for Male and Female Cancer Patients for the next 3 years
+
+df <- admission_data
+# Filter Cancer patients only and group by Gender and Date
+df_cancer <- df %>%
+  filter(`Medical Condition` == "Cancer") %>%
+  mutate(`Date of Admission` = as.Date(`Date of Admission`)) %>%
+  group_by(Gender, `Date of Admission`) %>%
+  summarise(Total_Billing = sum(`Billing Amount`, na.rm = TRUE), .groups = "drop")
+
+# Prepare data for Prophet for each gender
+df_male <- df_cancer %>% filter(Gender == "Male") %>%
+  rename(ds = `Date of Admission`, y = Total_Billing)
+df_female <- df_cancer %>% filter(Gender == "Female") %>%
+  rename(ds = `Date of Admission`, y = Total_Billing)
+
+# Create Prophet models
+model_male <- prophet(df_male, daily.seasonality = TRUE)
+model_female <- prophet(df_female, daily.seasonality = TRUE)
+
+# Create future dataframes (3 years = 1095 days)
+future_male <- make_future_dataframe(model_male, periods = 1095)
+future_female <- make_future_dataframe(model_female, periods = 1095)
+
+# Make predictions
+forecast_male <- predict(model_male, future_male)
+forecast_female <- predict(model_female, future_female)
+
+# Add Gender for plotting
+forecast_male$Gender <- "Male"
+forecast_female$Gender <- "Female"
+
+# Combine forecasts
+forecast_all <- bind_rows(
+  forecast_male %>% dplyr::select(ds, yhat, Gender),
+  forecast_female %>% dplyr::select(ds, yhat, Gender)
+)
+
+dev.off()
+
+# Plot
+ggplot(forecast_all, aes(x = ds, y = yhat, color = Gender)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Male" = "blue", "Female" = "red")) +
+  labs(title = "Forecast: Daily Billing Amounts for Cancer Patients (Next 3 Years)",
+       x = "Date", y = "Predicted Total Billing") +
+  theme_minimal()
+
+dev.off()
+
+#  3. Estimate the average LOS of cancer patients per month stratified by males and Females
+
+# Ensure date format
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+df$`Discharge Date` <- as.Date(df$`Discharge Date`)
+
+# Filter cancer patients
+df_cancer <- df %>% filter(tolower(`Medical Condition`) == "cancer")
+
+# Compute Length of Stay
+df_cancer <- df_cancer %>%
+  mutate(LOS = as.numeric(`Discharge Date` - `Date of Admission`))
+
+# Group by YearMonth and Gender
+df_cancer <- df_cancer %>%
+  mutate(YearMonth = floor_date(`Date of Admission`, "month"))
+
+monthly_avg_los <- df_cancer %>%
+  group_by(YearMonth, Gender) %>%
+  summarise(LOS = mean(LOS, na.rm = TRUE), .groups = 'drop')
+
+# Forecast per gender using Prophet
+forecasts <- list()
+for (gender in c("Male", "Female")) {
+  df_gender <- monthly_avg_los %>%
+    filter(Gender == gender) %>%
+    rename(ds = YearMonth, y = LOS)
+  
+  model <- prophet(df_gender, yearly.seasonality = TRUE)
+  future <- make_future_dataframe(model, periods = 36, freq = "month")
+  forecast <- predict(model, future)
+  
+  forecasts[[gender]] <- forecast %>%
+    dplyr::select(ds, yhat) %>%
+    rename(Predicted_LOS = yhat) %>%
+    mutate(Gender = gender)
+}
+
+# Combine and plot
+forecast_df <- bind_rows(forecasts)
+
+ggplot(forecast_df, aes(x = ds, y = Predicted_LOS, color = Gender)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("Male" = "blue", "Female" = "red")) +
+  labs(title = "Forecasted Monthly Average LOS for Cancer Patients by Gender",
+       x = "Date", y = "Average Length of Stay (days)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
+
+#  4. estimate the average length of stay (LOS) per month for cancer patients, stratified by age groups, and forecast it for the next 3 years.
+
+# Convert to Date
+df$`Date of Admission` <- as.Date(df$`Date of Admission`)
+df$`Discharge Date` <- as.Date(df$`Discharge Date`)
+
+# Calculate LOS
+df$LOS <- as.numeric(df$`Discharge Date` - df$`Date of Admission`)
+
+# Filter for cancer patients
+df_cancer <- df %>% filter(tolower(`Medical Condition`) == "cancer")
+
+# Create Age Groups
+df_cancer <- df_cancer %>%
+  mutate(`Age Group` = cut(Age, breaks = c(0, 20, 40, 60, 80, Inf),
+                           labels = c("0-20", "21-40", "41-60", "61-80", "81+")))
+
+# Create Year-Month
+df_cancer <- df_cancer %>%
+  mutate(YearMonth = floor_date(`Date of Admission`, unit = "month"))
+
+# Monthly average LOS per age group
+monthly_avg_los <- df_cancer %>%
+  group_by(YearMonth, `Age Group`) %>%
+  summarise(Avg_LOS = mean(LOS, na.rm = TRUE), .groups = 'drop')
+
+# Forecast with Prophet for each age group
+forecast_list <- list()
+
+for (group in unique(monthly_avg_los$`Age Group`)) {
+  df_group <- monthly_avg_los %>%
+    filter(`Age Group` == group) %>%
+    dplyr::select(ds = YearMonth, y = Avg_LOS)
+  
+  model <- prophet(df_group)
+  future <- make_future_dataframe(model, periods = 36, freq = "month")
+  forecast <- predict(model, future)
+  forecast$`Age Group` <- group
+  forecast_list[[as.character(group)]] <- forecast[, c("ds", "yhat", "Age Group")]
+}
+
+# Combine forecasts
+forecast_df <- bind_rows(forecast_list)
+
+# Plot
+ggplot(forecast_df, aes(x = ds, y = yhat, color = `Age Group`)) +
+  geom_line(size = 1.2) +
+  labs(title = "Forecast of Average Length of Stay by Age Group (Next 3 Years)",
+       x = "Date", y = "Predicted LOS (Days)") +
+  theme_minimal() +
+  theme(legend.title = element_blank(), axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
