@@ -1,0 +1,127 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+# STEP 1: Data Exploration
+
+# Top 10 rows
+top_10 = admission_data.head(10)
+print(top_10)
+
+# Unique gender values
+unique_genders = admission_data['Gender'].dropna().unique()
+print(unique_genders)
+
+# Age statistics
+age_summary = {
+    "Maximum_Admission_Age": admission_data["Age"].max(),
+    "Minimum_Admission_Age": admission_data["Age"].min(),
+    "Average_Admission_Age": round(admission_data["Age"].mean(), 0)
+}
+print(age_summary)
+
+# Median age
+median_age = admission_data["Age"].median()
+print({"Median_Age": median_age})
+
+# Unique values for other columns
+print(admission_data["Insurance Provider"].dropna().unique())
+print(admission_data["Blood Type"].dropna().unique())
+print(admission_data["Medical Condition"].dropna().unique())
+print(admission_data["Admission Type"].dropna().unique())
+print(admission_data["Test Results"].dropna().unique())
+print(admission_data["Medication"].dropna().unique())
+
+# Count of unique doctors and hospitals
+num_doctors = admission_data["Doctor"].nunique()
+print({"Number_of_Doctors": num_doctors})
+num_hospitals = admission_data["Hospital"].nunique()
+print({"Number_of_Hospitals": num_hospitals})
+
+# Convert dates to datetime if not already
+admission_data['Discharge Date'] = pd.to_datetime(admission_data['Discharge Date'], errors='coerce')
+admission_data['Date of Admission'] = pd.to_datetime(admission_data['Date of Admission'], errors='coerce')
+
+# Discharge date stats
+max_discharge = admission_data['Discharge Date'].max()
+min_discharge = admission_data['Discharge Date'].min()
+discharge_stats = {
+    "Maximum_Discharge_Date": max_discharge,
+    "Minimum_Discharge_Date": min_discharge,
+    "Difference_in_Years": ((max_discharge - min_discharge).days) / 365,
+    "Difference_in_Months": ((max_discharge - min_discharge).days) / 30,
+    "Difference_in_Days": (max_discharge - min_discharge).days
+}
+print(discharge_stats)
+
+# Admission date stats
+max_admission = admission_data['Date of Admission'].max()
+min_admission = admission_data['Date of Admission'].min()
+admission_stats = {
+    "Maximum_Admission_Date": max_admission,
+    "Minimum_Admission_Date": min_admission,
+    "Difference_in_Years": ((max_admission - min_admission).days) / 365,
+    "Difference_in_Months": ((max_admission - min_admission).days) / 30,
+    "Difference_in_Days": (max_admission - min_admission).days
+}
+print(admission_stats)
+
+# Average length of stay
+admission_data["Length_of_Stay"] = (admission_data["Discharge Date"] - admission_data["Date of Admission"]).dt.days
+length_of_stay = {
+    "Average_Length_of_Stay": admission_data["Length_of_Stay"].mean(),
+    "Maximum_Length_of_Stay": admission_data["Length_of_Stay"].max(),
+    "Minimum_Length_of_Stay": admission_data["Length_of_Stay"].min()
+}
+print(length_of_stay)
+
+# Billing statistics
+billing_summary = {
+    "The_Minimum_Bill": round(admission_data["Billing Amount"].min(), 2),
+    "The_Maximum_Bill": round(admission_data["Billing Amount"].max(), 2),
+    "Difference": round(admission_data["Billing Amount"].max() - admission_data["Billing Amount"].min(), 2),
+    "Average_Billing_Amount": round(admission_data["Billing Amount"].mean(), 2)
+}
+print(billing_summary)
+
+# Find bills with negative values
+negative_bills = admission_data[admission_data["Billing Amount"] < 0]
+print("Negative Bills:")
+print(negative_bills)
+
+# Find bills between $0 and $50
+small_bills = admission_data[
+    (admission_data["Billing Amount"] >= 0) & (admission_data["Billing Amount"] <= 50)
+]
+print("Small Bills between $0 and $50:")
+print(small_bills)
