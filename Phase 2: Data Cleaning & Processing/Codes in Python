@@ -1,0 +1,99 @@
+# Installing all required libraries
+!pip install pandas
+!pip install numpy 
+!pip install seaborn
+!pip install matplotlib
+!pip install scipy
+!pip install python-dateutil
+!pip install openpyxl
+!pip install statsmodels
+!pip install prophet
+
+# Improt necessary libraries
+import pandas as pd
+import numpy as np
+import re
+import openpyxl
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy.stats import pearsonr
+from scipy.stats import chi2_contingency
+from scipy.stats import ttest_ind, mannwhitneyu
+from statsmodels.graphics.regressionplots import plot_leverage_resid2, influence_plot
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tsa.exponential_smoothing.ets import ETSModel
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# Load data 
+admission_data = pd.read_excel("C:/Users/alreada/Desktop/El futuro/DATASETs/patients.xlsx", engine='openpyxl')
+df= admission_data
+
+# STEP 2: Data Cleaning & Processing
+
+# Normalize patient and doctor names (capitalize first and last names)
+admission_data["Patient_First_Name"] = admission_data["Name"].astype(str).str.split().str[0].str.title()
+admission_data["Patient_Last_Name"] = admission_data["Name"].astype(str).str.split().str[-1].str.title()
+admission_data["Doctor_First_Name"] = admission_data["Doctor"].astype(str).str.split().str[0].str.title()
+admission_data["Doctor_Last_Name"] = admission_data["Doctor"].astype(str).str.split().str[-1].str.title()
+
+# Show top 10 rows
+print(admission_data.head(10))
+
+# Find null or invalid values
+null_values = admission_data[
+    admission_data["Name"].isna() | (admission_data["Name"] == "") |
+    admission_data["Doctor"].isna() | (admission_data["Doctor"] == "") |
+    admission_data["Billing Amount"].isna() | (admission_data["Billing Amount"] <= 0) |
+    admission_data["Admission Type"].isna() | (admission_data["Admission Type"] == "") |
+    admission_data["Medical Condition"].isna() | (admission_data["Medical Condition"] == "") |
+    admission_data["Age"].isna() | (admission_data["Age"] <= 0) |
+    admission_data["Date of Admission"].isna() |
+    admission_data["Hospital"].isna() | (admission_data["Hospital"] == "") |
+    admission_data["Gender"].isna() | (admission_data["Gender"] == "") |
+    admission_data["Blood Type"].isna() | (admission_data["Blood Type"] == "") |
+    admission_data["Insurance Provider"].isna() | (admission_data["Insurance Provider"] == "") |
+    admission_data["Room Number"].isna() | (admission_data["Room Number"] == "") |
+    admission_data["Medication"].isna() |
+    admission_data["Discharge Date"].isna() |
+    admission_data["Test Results"].isna() | (admission_data["Test Results"] == "")
+]
+print("Null or invalid rows:")
+print(null_values)
+
+# Remove duplicates by patient name and date of admission
+admission_data = admission_data.drop_duplicates(subset=["Name", "Date of Admission"], keep="first")
+
+# Standardize gender values
+admission_data.loc[:, "Gender"] = admission_data["Gender"].str.lower().map({
+    "m": "Male", "male": "Male", "man": "Male", "boy": "Male", "men": "Male",
+    "f": "Female", "female": "Female", "woman": "Female", "girl": "Female", "women": "Female"
+}).fillna(admission_data["Gender"])
+
+# Convert date columns to datetime
+admission_data.loc[:, "Date of Admission"] = pd.to_datetime(admission_data["Date of Admission"], errors='coerce')
+admission_data.loc[:, "Discharge Date"] = pd.to_datetime(admission_data["Discharge Date"], errors='coerce')
+
+# Create analysis table with selected columns
+analysis_table = admission_data[[
+    "Patient_First_Name", "Patient_Last_Name", "Age", "Gender", "Blood Type", "Medical Condition",
+    "Date of Admission", "Doctor_First_Name", "Doctor_Last_Name", "Hospital",
+    "Insurance Provider", "Billing Amount", "Room Number", "Admission Type",
+    "Discharge Date", "Medication", "Test Results"
+]].copy()
+
+# Remove common titles from first names
+def remove_title(name):
+    if pd.isnull(name):
+        return name
+    return re.sub(r"^(Dr\.|Mr\.|Miss)\s*", "", name).strip()
+
+analysis_table["Doctor_First_Name"] = analysis_table["Doctor_First_Name"].apply(remove_title)
+analysis_table["Patient_First_Name"] = analysis_table["Patient_First_Name"].apply(remove_title)
+
+# Display the cleaned table
+print("Cleaned Analysis Table:")
+print(analysis_table.head())
