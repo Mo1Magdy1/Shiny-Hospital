@@ -1,0 +1,128 @@
+# Install and Load Libraries
+install.packages("dplyr")
+install.packages("lubridate")
+install.packages("readxl")
+install.packages("stringr")
+install.packages("ggplot2")
+install.packages("tidyr")
+install.packages("scales")
+install.packages("gapminder")
+install.packages("ggthemes")
+install.packages("forcats")
+install.packages("plotly")
+install.packages("ggtext")
+install.packages("viridis")
+install.packages("RColorBrewer")
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(tidyr)
+library(scales)
+library(gapminder)
+library(ggthemes)
+library(forcats)
+library(plotly)
+library(ggtext)
+library(viridis)
+library(RColorBrewer)
+
+
+# Load data
+admission_data <- read_excel("C:/Users/alreada/Desktop/patients.xlsx")
+df <- admission_data
+
+# STEP 1: Data Exploration
+
+# Exploring top 10 rows
+top_10 <- admission_data %>% head(10)
+top_10
+
+# Unique gender values
+unique_genders <- admission_data %>% distinct(Gender)
+unique_genders
+
+# Age statistics
+age_summary <- admission_data %>%
+  summarize(
+    Maximum_Admission_Age = max(Age, na.rm = TRUE),
+    Minimum_Admission_Age = min(Age, na.rm = TRUE),
+    Average_Admission_Age = round(mean(Age, na.rm = TRUE), 0)
+  )
+age_summary
+
+# Finding median age
+median_age <- admission_data %>%
+  summarize(Median_Age = median(Age, na.rm = TRUE))
+median_age
+
+# Unique values for other columns
+unique_insurance_providers <- admission_data %>% distinct(`Insurance Provider`)
+unique_insurance_providers
+unique_blood_types <- admission_data %>% distinct(`Blood Type`)
+unique_blood_types
+unique_medical_conditions <- admission_data %>% distinct(`Medical Condition`)
+unique_medical_conditions
+unique_admission_types <- admission_data %>% distinct(`Admission Type`)
+unique_admission_types
+unique_test_results <- admission_data %>% distinct(`Test Results`)
+unique_test_results
+unique_medications <- admission_data %>% distinct(Medication)
+unique_medications
+
+# Count of unique doctors and hospitals
+number_of_doctors <- admission_data %>% distinct(Doctor) %>% count()
+number_of_doctors
+number_of_hospitals <- admission_data %>% distinct(Hospital) %>% count()
+number_of_hospitals
+
+# Discharge date statistics
+discharge_stats <- admission_data %>%
+  summarize(
+    Maximum_Discharge_Date = max(`Discharge Date`, na.rm = TRUE),
+    Minimum_Discharge_Date = min(`Discharge Date`, na.rm = TRUE),
+    Difference_in_Years = as.numeric(difftime(max(`Discharge Date`, na.rm = TRUE), min(`Discharge Date`, na.rm = TRUE), units = "weeks")) / 52,
+    Difference_in_Months = as.numeric(difftime(max(`Discharge Date`, na.rm = TRUE), min(`Discharge Date`, na.rm = TRUE), units = "days")) / 30,
+    Difference_in_Days = as.numeric(difftime(max(`Discharge Date`, na.rm = TRUE), min(`Discharge Date`, na.rm = TRUE), units = "days"))
+  )
+discharge_stats
+
+# Admission date statistics
+admission_stats <- admission_data %>%
+  summarize(
+    Maximum_Admission_Date = max(`Date of Admission`, na.rm = TRUE),
+    Minimum_Admission_Date = min(`Date of Admission`, na.rm = TRUE),
+    Difference_in_Years = as.numeric(difftime(max(`Date of Admission`, na.rm = TRUE), min(`Date of Admission`, na.rm = TRUE), units = "weeks")) / 52,
+    Difference_in_Months = as.numeric(difftime(max(`Date of Admission`, na.rm = TRUE), min(`Date of Admission`, na.rm = TRUE), units = "days")) / 30.4375, # Approximate average days in a month
+    Difference_in_Days = as.numeric(difftime(max(`Date of Admission`, na.rm = TRUE), min(`Date of Admission`, na.rm = TRUE), units = "days"))
+  )
+admission_stats
+
+# Average length of stay in DAYs
+length_of_stay <- admission_data %>%
+  mutate(Length_of_Stay = as.numeric(difftime(`Discharge Date`, `Date of Admission`, units = "days"))) %>%
+  summarize(
+    Average_Length_of_Stay = mean(Length_of_Stay, na.rm = TRUE),
+    Maximum_Length_of_Stay = max(Length_of_Stay, na.rm = TRUE),
+    Minimum_Length_of_Stay = min(Length_of_Stay, na.rm = TRUE)
+  )
+length_of_stay
+
+# Billing statistics
+billing_summary <- admission_data %>%
+  summarize(
+    The_Minimum_Bill = round(min(`Billing Amount`, na.rm = TRUE), 2),
+    The_Maximum_Bill = round(max(`Billing Amount`, na.rm = TRUE), 2),
+    Difference = round(max(`Billing Amount`, na.rm = TRUE) - min(`Billing Amount`, na.rm = TRUE), 2),
+    Average_Billing_Amount = round(mean(`Billing Amount`, na.rm = TRUE), 2)
+  )
+billing_summary
+
+# Finding negative bills
+negative_bills <- admission_data %>% filter(`Billing Amount` < 0)
+negative_bills
+
+# Small bills between $0 and $50
+small_bills <- admission_data %>% filter(`Billing Amount` >= 0 & `Billing Amount` <= 50)
+small_bills
